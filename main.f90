@@ -176,6 +176,46 @@ subroutine dt_evolve(it)
      
 end subroutine dt_evolve
 !--------------------------------------------------------------------------------------
+subroutine dt_evolve_zu_prop(it)
+  implicit none
+  use global_variables
+  integer,intent(in) :: it
+  complex(8) :: zpropagator(2,2),zpropagator_t(2,2)
+  real(8) :: Et, Ham(2,2), tt
+  real(8) :: eig_vec(2,2), eig_val(2)
+  real(8) :: ss
+
+  tt = dt*it+0.5d0*dt
+  Et = E0*sin(omega0*tt)
+
+  Ham(1,1) =  0.5d0
+  Ham(2,2) = -0.5d0
+  Ham(1,2) = Et
+  Ham(2,1) = Et
+
+  eig_val(1) = 0.5d0*(ham(1,1)+ham(2,2)+sqrt((ham(2,2)-ham(1,1))**2+4d0*ham(1,2)**2))
+  eig_val(2) = 0.5d0*(ham(1,1)+ham(2,2)-sqrt((ham(2,2)-ham(1,1))**2+4d0*ham(1,2)**2))
+  eig_vec(1,1) = 1d0; eig_vec(2,1) = ham(1,2)/(eig_val(1)-ham(2,2))
+  eig_vec(1,2) = ham(1,2)/(eig_val(2)-ham(1,1)); eig_vec(2,2) = 1d0
+
+  ss = eig_vec(1,1)**2 + eig_vec(2,1)**2
+  eig_vec(:,1) = eig_vec(:,1)/sqrt(ss)
+
+  ss = eig_vec(1,2)**2 + eig_vec(2,2)**2
+  eig_vec(:,2) = eig_vec(:,2)/sqrt(ss)
+
+  zpropagator = 0d0
+  zpropagator(1,1) = exp(-zi*dt*eig_val(1))
+  zpropagator(2,2) = exp(-zi*dt*eig_val(2))
+
+  zpropagator_t = matmul(eig_val, matmul(zpropagator,transpose(eig_vec)))
+
+  zu_prop = matmul(zpropagator_t,zu_prop)
+  
+  
+  
+
+end subroutine dt_evolve_zu_prop
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
