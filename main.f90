@@ -7,10 +7,10 @@ module global_variables
 ! quantum system
   complex(8) :: zrho_dm(2,2), zU_prop(2,2)
   complex(8),allocatable :: zrho_dm_memory(:,:,:),zu_prop_memory(:,:,:)
-  complex(8),allocatable :: zSz_memory(:,:,:)
+  complex(8),allocatable :: zAt_memory(:,:,:),zAt_zrho_memory(:,:,:)
   
 ! time propagation
-  integer :: nt, nt_memory
+  integer :: nt
   real(8) :: dt, Tprop, T_memory_cut
 
 ! field parameters
@@ -21,7 +21,7 @@ module global_variables
   real(8) :: omega_c, eta, beta_temp
 
 ! Pauli matrix
-  complex(8) :: zSx(2,2),zSz(2,2)
+  complex(8) :: zSx(2,2),zSy(2,2),zSz(2,2)
   
   
 end module global_variables
@@ -51,16 +51,13 @@ subroutine input
   omega0 = 1d0
 
 ! bath  
-  omega_c = 1d0
+  omega_c = 0.1d0
   eta = 1d0
   beta_temp = 1d0
   T_memory_cut  = 10d0
 
   
   nt = aint(Tprop/dt) + 1
-  nt_memory = aint(T_memory_cut/dt) + 1
-
-
 
   
   
@@ -72,9 +69,9 @@ subroutine initialization
   real(8) :: tt
   integer :: it
 
-  allocate(zrho_dm_memory(2,2,0:nt_memory),zu_prop_memory(2,2,0:nt_memory))
-  allocate(zAt_memory(2,2,0:nt_memory))
-  allocate(zcorr_bath(0:nt_memory))
+  allocate(zrho_dm_memory(2,2,0:nt+1),zu_prop_memory(2,2,0:nt+1))
+  allocate(zAt_memory(2,2,0:nt+1),zAt_zrho_memory(2,2,0:nt+1))
+  allocate(zcorr_bath(0:nt+1))
 
   zrho_dm = 0d0
   zrho_dm(2,2) = 1d0
@@ -82,25 +79,26 @@ subroutine initialization
   zu_prop = 0d0
   zu_prp(1,1) = 1d0; zu_prp(2,2) = 1d0
 
-  do it = 0, nt_memory
+  do it = 0, nt+1
      tt = dt*it
 ! high-temperature correlation function     
      zcorr_bath(it) = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
   end do
-  zcorr_bath(0) = 0.5d0*zcorr_bath(0)
+
 
   zrho_dm_memory = 0d0
-  zrho_dm_memory(:,:,0) = 0.5d0*zrho_dm(:,:)
+  zrho_dm_memory(:,:,0) = zrho_dm(:,:)
   
   zu_prop_memory = 0d0
-  zu_prop_memory(:,:,0) = 0.5d0*zu_prop(:,:)
+  zu_prop_memory(:,:,0) = zu_prop(:,:)
 
   zSx = 0d0
-  zSx(0,1) = 1d0; zSx(1,0) = 1d0 
+  zSx(1,2) = 1d0; zSx(2,1) = 1d0 
+  zSy = 0d0
+  zSy(1,2) = -zi; zSy(2,1) = zi
   zSz = 0d0
   zSz(1,1) = 1d0; zSz(2,2) = -1d0
 
-  zAt_memory(:,:,0) = zSz
   
 end subroutine initialization
 !--------------------------------------------------------------------------------------
@@ -108,6 +106,9 @@ subroutine propagation
   implicit none
   use global_variables
   integer :: it
+
+  call pre_propagation
+
 
   do it = 0, nt
 
@@ -127,51 +128,47 @@ subroutine dt_evolve(it)
   complex(8) :: zA_t(2,2)
 
   zrho_dm_old = zrho_dm
-  
-  if(it /= 0)then
-     z_drho_dt = 0d0
-  else
-     zA_t = matmul(transpose(conjg(zu_prop)), matmul(zSz, zu_prop))
-     z_drho_dt = 0d0
-     do it_t = 0, min(it, nt_memory)
 
-        z_drho_dt = z_drho_dt + zcorr_bath(it_t)*(&
-             matmul(zA_t,matmul(zAt_memory(:,:,it_t),zrho_dm_memory(:,:,it_t))) &
-            -matmul(matmul(zAt_memory(:,:,it_t),zrho_dm_memory(:,:,it_t)),zA_t)
-     end do
-     zA_t = -z_drho_dt*dt
-     z_drho_dt = zA_t + transpose(conjg(zA_t))
+
+! predictor
+  if(it/=0)then
+    z_drho_dt(:,:) = -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it),zAt_zdrho_memory(:,:,it))
+
+    do it_t = 1, it-1
+      z_drho_dt(:,:) = z_drho_dt(:,:) &
+        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zdrho_memory(:,:,it-it_t))
+    end do
+
+    it_t = it
+    z_drho_dt(:,:) = z_drho_dt(:,:) &
+      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zdrho_memory(:,:,it-it_t))
+  else
+    z_drho_dt = 0d0
   end if
 
-! predictor       
+  z_drho_dt(:,:) = z_drho_dt(:,:) +  transpose(conjg(z_drho_dt(:,:)))
   z_drho_dt_pred = z_drho_dt
-     
-  zrho_dm = zrho_dm + dt*z_drho_dt
-  call dt_evolve_zu_prop(it)
-  zA_t = matmul(transpose(conjg(zu_prop)), matmul(zSz, zu_prop))
-  
-  do it_t = 0, nt_memory-1
-     zrho_dm_memory(:,:,nt_memory-it_t) = zrho_dm_memory(:,:,nt_memory-it_t-1)
-     zu_prop_memory(:,:,nt_memory-it_t) = zu_prop_memory(:,:,nt_memory-it_t-1)
-     zAt_memory(:,:,nt_memory-it_t) = zAt_memory(:,:,nt_memory-it_t-1)
-  end do
-  zrho_dm_memory(:,:,0) = zrho_dm(:,:)
-  zu_prop_memory(:,:,0) = zu_prop(:,:)
-  zAt_memory(:,:,0) = zA_t(:,:)
 
-! corrector     
-  z_drho_dt = 0d0
-  do it_t = 0, min(it+1, nt_memory)
-     
-     z_drho_dt = z_drho_dt + zcorr_bath(it_t)*(&
-          matmul(zA_t,matmul(zAt_memory(:,:,it_t),zrho_dm_memory(:,:,it_t))) &
-          -matmul(matmul(zAt_memory(:,:,it_t),zrho_dm_memory(:,:,it_t)),zA_t)
-  end do
-  zA_t = -z_drho_dt*dt
-  z_drho_dt = zA_t + transpose(conjg(zA_t))
+  zrho_dm = zrho_dm + dt* z_drho_dt
+  zAt_zdrho_memory(:,:,it+1) = matmul(zAt_memory(:,:,it+1),zrho_dm(:,:))
 
-  zrho_dm = zrho_dm_old + dt*0.5d0*(z_drho_dt + z_drho_dt_pred)
-  zrho_dm_memory(:,:,0) = zrho_dm(:,:)  
+! corrector
+    z_drho_dt(:,:) = &
+      -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it+1),zAt_zdrho_memory(:,:,it+1))
+
+    do it_t = 1, it+1-1
+      z_drho_dt(:,:) = z_drho_dt(:,:) &
+        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zdrho_memory(:,:,it+1-it_t))
+    end do
+
+    it_t = it+1
+    z_drho_dt(:,:) = z_drho_dt(:,:) &
+      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zdrho_memory(:,:,it+1-it_t))
+
+    zrho_dm = zrho_dm_old + 0.5d0*dt*(z_drho_dt + z_drho_dt_pred)
+    zrho_dm_memory(:,:,it+1) = zrho_dm(:,:)
+    zAt_zdrho_memory(:,:,it+1) = matmul(zAt_memory(:,:,it+1),zrho_dm(:,:))
+
 
      
 end subroutine dt_evolve
@@ -217,6 +214,30 @@ subroutine dt_evolve_zu_prop(it)
 
 end subroutine dt_evolve_zu_prop
 !--------------------------------------------------------------------------------------
+subroutine pre_propagation
+  use global_variables
+  implicit none
+  integer :: it
+
+! propagator
+  do it = 0, nt
+
+    call dt_evolve_zu_prop(it)
+    zu_prop_memory(:,:,it+1) = zu_prop(:,:)
+    
+  end do
+
+
+! interaction matrix
+  zAt_memory = 0d0
+  do it = 0, nt+1
+    zAt_memory(:,:,it) = matmul(conjg(transpose(zu_prop_memory(:,:,it))), &
+      matmul(zSy, zu_prop_memory(:,:,it)))
+  end do
+
+  zAt_zrho_memory(:,:,0) = matmul(zAt_memory(:,:,0),zrho_dm_memory(:,:,0))
+
+end subroutine pre_propagation
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
