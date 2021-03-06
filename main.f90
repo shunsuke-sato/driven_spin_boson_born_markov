@@ -5,7 +5,7 @@ module global_variables
   complex(8),parameter :: zi = (0d0, 1d0)
 
 ! quantum system
-  complex(8) :: zrho_dm(2,2), zU_prop(2,2)
+  complex(8) :: zrho_dm(2,2), zU_prop(2,2), zrho_dm_s(2,2)
   complex(8),allocatable :: zrho_dm_memory(:,:,:),zu_prop_memory(:,:,:)
   complex(8),allocatable :: zAt_memory(:,:,:),zAt_zrho_memory(:,:,:)
   
@@ -43,7 +43,7 @@ subroutine input
 
 
   Tprop = 200d0
-  dt = 0.1d0
+  dt = 0.005d0
 
 
 ! laser  
@@ -51,8 +51,8 @@ subroutine input
   omega0 = 1d0
 
 ! bath  
-  omega_c = 0.1d0
-  eta = 1d0
+  omega_c = 0.5d0
+  eta = 0.1d0 !1d0 ! debug
   beta_temp = 1d0
   T_memory_cut  = 10d0
 
@@ -82,7 +82,9 @@ subroutine initialization
   do it = 0, nt+1
      tt = dt*it
 ! high-temperature correlation function     
-     zcorr_bath(it) = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
+!     zcorr_bath(it) = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
+! zero-temperature correlation function     
+     zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
   end do
 
 
@@ -109,13 +111,16 @@ subroutine propagation
 
   call pre_propagation
 
-
+  open(20,file='pop_t.out')
   do it = 0, nt
 
-     call dt_evolve(it)
+    zrho_dm_s = matmul(zu_prop_memory(:,:,it), &
+      matmul(zrho_dm, conjg(transpose(zu_prop_memory(:,:,it)))))
+    write(20,"(999e26.16e3)")dt*it,real(zrho_dm_s(1,1)),real(zrho_dm_s(2,2)),real(zrho_dm_s(1,2))
+    call dt_evolve(it)
      
   end do
-  
+  close(20)
 end subroutine propagation
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve(it)
@@ -132,21 +137,27 @@ subroutine dt_evolve(it)
 
 ! predictor
   if(it/=0)then
-    z_drho_dt(:,:) = -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it))
+    z_drho_dt(:,:) = -0.5d0*zcorr_bath(0) &
+      *(matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it)) &
+      -matmul(zAt_zrho_memory(:,:,it),zAt_memory(:,:,it)))
 
     do it_t = 1, it-1
       z_drho_dt(:,:) = z_drho_dt(:,:) &
-        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it-it_t))
+        -zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it-it_t)) &
+        -matmul(zAt_zrho_memory(:,:,it-it_t),zAt_memory(:,:,it)))
     end do
 
     it_t = it
     z_drho_dt(:,:) = z_drho_dt(:,:) &
-      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it-it_t))
+      -0.5d0*zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it-it_t)) &
+      -matmul(zAt_zrho_memory(:,:,it-it_t),zAt_memory(:,:,it)))
   else
     z_drho_dt = 0d0
   end if
 
   z_drho_dt(:,:) = z_drho_dt(:,:) +  transpose(conjg(z_drho_dt(:,:)))
+  z_drho_dt = z_drho_dt*dt
+
   z_drho_dt_pred = z_drho_dt
 
   zrho_dm = zrho_dm + dt* z_drho_dt
@@ -154,16 +165,23 @@ subroutine dt_evolve(it)
 
 ! corrector
     z_drho_dt(:,:) = &
-      -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1))
+      -0.5d0*zcorr_bath(0) &
+      *(matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1)) &
+      -matmul(zAt_zrho_memory(:,:,it+1),zAt_memory(:,:,it+1)))
 
     do it_t = 1, it+1-1
       z_drho_dt(:,:) = z_drho_dt(:,:) &
-        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1-it_t))
+        -zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1-it_t)) &
+        -matmul(zAt_zrho_memory(:,:,it+1-it_t),zAt_memory(:,:,it+1)))
     end do
 
     it_t = it+1
     z_drho_dt(:,:) = z_drho_dt(:,:) &
-      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1-it_t))
+      -0.5d0*zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1-it_t)) &
+      -matmul(zAt_zrho_memory(:,:,it+1-it_t),zAt_memory(:,:,it+1)))
+
+    z_drho_dt(:,:) = z_drho_dt(:,:) +  transpose(conjg(z_drho_dt(:,:)))
+    z_drho_dt = z_drho_dt*dt
 
     zrho_dm = zrho_dm_old + 0.5d0*dt*(z_drho_dt + z_drho_dt_pred)
     zrho_dm_memory(:,:,it+1) = zrho_dm(:,:)
@@ -232,7 +250,7 @@ subroutine pre_propagation
   zAt_memory = 0d0
   do it = 0, nt+1
     zAt_memory(:,:,it) = matmul(conjg(transpose(zu_prop_memory(:,:,it))), &
-      matmul(zSy, zu_prop_memory(:,:,it)))
+      matmul(zSx, zu_prop_memory(:,:,it)))
   end do
 
   zAt_zrho_memory(:,:,0) = matmul(zAt_memory(:,:,0),zrho_dm_memory(:,:,0))

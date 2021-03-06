@@ -1,8 +1,9 @@
 # Log files
 *.out
-77;20805;0c*.log
+*.log
 *.dat
 *~
+
 
 # Object files
 *.o
