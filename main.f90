@@ -27,19 +27,19 @@ module global_variables
 end module global_variables
 !--------------------------------------------------------------------------------------
 program main
-  implicit none
   use global_variables
+  implicit none
 
   call input  
-  call initialize
+  call initialization
 
   call propagation
   
 end program main
 !--------------------------------------------------------------------------------------
 subroutine input
-  implicit none
   use global_variables
+  implicit none
 
 
   Tprop = 200d0
@@ -64,8 +64,8 @@ subroutine input
 end subroutine input
 !--------------------------------------------------------------------------------------
 subroutine initialization
-  implicit none
   use global_variables
+  implicit none
   real(8) :: tt
   integer :: it
 
@@ -77,7 +77,7 @@ subroutine initialization
   zrho_dm(2,2) = 1d0
 
   zu_prop = 0d0
-  zu_prp(1,1) = 1d0; zu_prp(2,2) = 1d0
+  zu_prop(1,1) = 1d0; zu_prop(2,2) = 1d0
 
   do it = 0, nt+1
      tt = dt*it
@@ -103,8 +103,8 @@ subroutine initialization
 end subroutine initialization
 !--------------------------------------------------------------------------------------
 subroutine propagation
-  implicit none
   use global_variables
+  implicit none
   integer :: it
 
   call pre_propagation
@@ -119,8 +119,8 @@ subroutine propagation
 end subroutine propagation
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve(it)
-  implicit none
   use global_variables
+  implicit none
   integer,intent(in) :: it
   integer :: it_t
   complex(8) :: z_drho_dt(2,2), z_drho_dt_pred(2,2)
@@ -132,16 +132,16 @@ subroutine dt_evolve(it)
 
 ! predictor
   if(it/=0)then
-    z_drho_dt(:,:) = -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it),zAt_zdrho_memory(:,:,it))
+    z_drho_dt(:,:) = -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it))
 
     do it_t = 1, it-1
       z_drho_dt(:,:) = z_drho_dt(:,:) &
-        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zdrho_memory(:,:,it-it_t))
+        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it-it_t))
     end do
 
     it_t = it
     z_drho_dt(:,:) = z_drho_dt(:,:) &
-      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zdrho_memory(:,:,it-it_t))
+      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it),zAt_zrho_memory(:,:,it-it_t))
   else
     z_drho_dt = 0d0
   end if
@@ -150,32 +150,32 @@ subroutine dt_evolve(it)
   z_drho_dt_pred = z_drho_dt
 
   zrho_dm = zrho_dm + dt* z_drho_dt
-  zAt_zdrho_memory(:,:,it+1) = matmul(zAt_memory(:,:,it+1),zrho_dm(:,:))
+  zAt_zrho_memory(:,:,it+1) = matmul(zAt_memory(:,:,it+1),zrho_dm(:,:))
 
 ! corrector
     z_drho_dt(:,:) = &
-      -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it+1),zAt_zdrho_memory(:,:,it+1))
+      -0.5d0*zcorr_bath(0)*matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1))
 
     do it_t = 1, it+1-1
       z_drho_dt(:,:) = z_drho_dt(:,:) &
-        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zdrho_memory(:,:,it+1-it_t))
+        -zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1-it_t))
     end do
 
     it_t = it+1
     z_drho_dt(:,:) = z_drho_dt(:,:) &
-      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zdrho_memory(:,:,it+1-it_t))
+      -0.5d0*zcorr_bath(it_t)*matmul(zAt_memory(:,:,it+1),zAt_zrho_memory(:,:,it+1-it_t))
 
     zrho_dm = zrho_dm_old + 0.5d0*dt*(z_drho_dt + z_drho_dt_pred)
     zrho_dm_memory(:,:,it+1) = zrho_dm(:,:)
-    zAt_zdrho_memory(:,:,it+1) = matmul(zAt_memory(:,:,it+1),zrho_dm(:,:))
+    zAt_zrho_memory(:,:,it+1) = matmul(zAt_memory(:,:,it+1),zrho_dm(:,:))
 
 
      
 end subroutine dt_evolve
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve_zu_prop(it)
-  implicit none
   use global_variables
+  implicit none
   integer,intent(in) :: it
   complex(8) :: zpropagator(2,2),zpropagator_t(2,2)
   real(8) :: Et, Ham(2,2), tt
@@ -205,7 +205,7 @@ subroutine dt_evolve_zu_prop(it)
   zpropagator(1,1) = exp(-zi*dt*eig_val(1))
   zpropagator(2,2) = exp(-zi*dt*eig_val(2))
 
-  zpropagator_t = matmul(eig_val, matmul(zpropagator,transpose(eig_vec)))
+  zpropagator_t = matmul(eig_vec, matmul(zpropagator,transpose(eig_vec)))
 
   zu_prop = matmul(zpropagator_t,zu_prop)
   
