@@ -116,7 +116,7 @@ subroutine propagation
 
     zrho_dm_s = matmul(zu_prop_memory(:,:,it), &
       matmul(zrho_dm, conjg(transpose(zu_prop_memory(:,:,it)))))
-    write(20,"(999e26.16e3)")dt*it,real(zrho_dm_s(1,1)),real(zrho_dm_s(2,2)),real(zrho_dm_s(1,2))
+    write(20,"(999e26.16e3)")dt*it,real(zrho_dm_s(1,1)),real(zrho_dm_s(2,2)),zrho_dm_s(1,2)
     call dt_evolve(it)
      
   end do
