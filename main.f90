@@ -241,6 +241,7 @@ subroutine pre_propagation
   do it = 0, nt
 
     call dt_evolve_zu_prop(it)
+! here zu_prop is the subsystem propagator from 0 to (it+1)*dt
     zu_prop_memory(:,:,it+1) = zu_prop(:,:)
     
   end do
