@@ -24,6 +24,12 @@ module global_variables
 ! Pauli matrix
   complex(8) :: zSx(2,2),zSy(2,2),zSz(2,2)
   
+
+! propagation scheme
+  integer :: n_propagation_scheme
+  integer,parameter :: N_propagation_Born = 0
+  integer,parameter :: N_propagation_Redfield = 1
+  integer,parameter :: N_propagation_Lindblad = 2
   
 end module global_variables
 !--------------------------------------------------------------------------------------
@@ -32,15 +38,26 @@ program main
   implicit none
 
   call input  
-  call initialization
 
-  call propagation
+  select case(n_propagation_scheme)
+    case(N_propagation_Born,N_propagation_Redfield)
+      call initialization
+      call propagation
+    case(N_propagation_Lindblad)
+      call initialization_Lindblad
+      call propagation_Lindblad
+    case default
+      stop 'Error: Invalid propagation scheme'
+    end select
   
 end program main
 !--------------------------------------------------------------------------------------
 subroutine input
   use global_variables
   implicit none
+
+! scheme
+  n_propagation_scheme = N_propagation_Born
 
 
   Tprop = 200d0
