@@ -19,6 +19,7 @@ module global_variables
 ! bath parameter  
   complex(8),allocatable :: zcorr_bath(:)
   real(8) :: omega_c, eta, beta_temp
+  real(8) :: rx, rz
 
 ! Pauli matrix
   complex(8) :: zSx(2,2),zSy(2,2),zSz(2,2)
@@ -55,7 +56,8 @@ subroutine input
   eta = 0.1d0 !1d0 ! debug
   beta_temp = 1d0
   T_memory_cut  = 10d0
-
+  rx = 1d0
+  rz = 0d0
   
   nt = aint(Tprop/dt) + 1
 
@@ -251,7 +253,7 @@ subroutine pre_propagation
   zAt_memory = 0d0
   do it = 0, nt+1
     zAt_memory(:,:,it) = matmul(conjg(transpose(zu_prop_memory(:,:,it))), &
-      matmul(zSx, zu_prop_memory(:,:,it)))
+      matmul(rx*zSx + rz*zSz, zu_prop_memory(:,:,it)))
   end do
 
   zAt_zrho_memory(:,:,0) = matmul(zAt_memory(:,:,0),zrho_dm_memory(:,:,0))
