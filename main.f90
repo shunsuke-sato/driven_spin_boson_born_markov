@@ -20,6 +20,10 @@ module global_variables
   complex(8),allocatable :: zcorr_bath(:)
   real(8) :: omega_c, eta, beta_temp
   real(8) :: rx, rz
+  complex(8) :: zGamma_bath_zero, zGamma_bath_p_delta, zGamma_bath_m_delta
+  real(8) :: gamma_bath_zero, gamma_bath_p_delta, gamma_bath_m_delta
+  real(8) :: s_bath_zero, s_bath_p_delta, s_bath_m_delta
+  
 
 ! Pauli matrix
   complex(8) :: zSx(2,2),zSy(2,2),zSz(2,2)
@@ -30,6 +34,10 @@ module global_variables
   integer,parameter :: N_propagation_Born = 0
   integer,parameter :: N_propagation_Redfield = 1
   integer,parameter :: N_propagation_Lindblad = 2
+
+! lindblad eq.
+  real(8) :: H_LS(2,2), lamb_shift(2), rho_eq(2)
+  real(8) :: T1, T2
   
 end module global_variables
 !--------------------------------------------------------------------------------------
@@ -57,7 +65,8 @@ subroutine input
   implicit none
 
 ! scheme
-  n_propagation_scheme = N_propagation_Born
+!  n_propagation_scheme = N_propagation_Born
+  n_propagation_scheme = N_propagation_Lindblad
 
 
   Tprop = 200d0
@@ -85,12 +94,9 @@ end subroutine input
 subroutine initialization
   use global_variables
   implicit none
-  real(8) :: tt
-  integer :: it
 
   allocate(zrho_dm_memory(2,2,0:nt+1),zu_prop_memory(2,2,0:nt+1))
   allocate(zAt_memory(2,2,0:nt+1),zAt_zrho_memory(2,2,0:nt+1))
-  allocate(zcorr_bath(0:nt+1))
 
   zrho_dm = 0d0
   zrho_dm(2,2) = 1d0
@@ -98,13 +104,8 @@ subroutine initialization
   zu_prop = 0d0
   zu_prop(1,1) = 1d0; zu_prop(2,2) = 1d0
 
-  do it = 0, nt+1
-     tt = dt*it
-! high-temperature correlation function     
-!     zcorr_bath(it) = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
-! zero-temperature correlation function     
-     zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
-  end do
+  call calc_bath_correlation
+
 
 
   zrho_dm_memory = 0d0
@@ -122,6 +123,96 @@ subroutine initialization
 
   
 end subroutine initialization
+!--------------------------------------------------------------------------------------
+subroutine initialization_Lindblad
+  use global_variables
+  implicit none
+  real(8) :: tt
+  integer :: it
+
+
+  zrho_dm = 0d0
+  zrho_dm(2,2) = 1d0
+
+  zrho_dm_s = zrho_dm
+
+  call calc_bath_correlation
+  call FT_bath_correlation
+
+
+  lamb_shift(1) = s_bath_zero*rz**2 + s_bath_p_delta*rx**2
+  lamb_shift(2) = s_bath_zero*rz**2 + s_bath_m_delta*rx**2
+
+  rho_eq(1) = gamma_bath_m_delta/(gamma_bath_p_delta+gamma_bath_m_delta)
+  rho_eq(2) = gamma_bath_p_delta/(gamma_bath_p_delta+gamma_bath_m_delta)
+
+  T1 = rx**2*(gamma_bath_p_delta+gamma_bath_m_delta)
+  T1 = 1d0/T1
+
+  T2 = 0.5d0*rx**2*(gamma_bath_p_delta+gamma_bath_m_delta) + rz**2*gamma_bath_zero
+  T2 = 1d0/T2
+
+
+  zSx = 0d0
+  zSx(1,2) = 1d0; zSx(2,1) = 1d0 
+  zSy = 0d0
+  zSy(1,2) = -zi; zSy(2,1) = zi
+  zSz = 0d0
+  zSz(1,1) = 1d0; zSz(2,2) = -1d0
+
+  
+end subroutine initialization_Lindblad
+!--------------------------------------------------------------------------------------
+subroutine calc_bath_correlation
+  use global_variables
+  implicit none
+  real(8) :: tt
+  integer :: it
+
+  allocate(zcorr_bath(0:nt+1))
+  do it = 0, nt+1
+     tt = dt*it
+! high-temperature correlation function     
+!     zcorr_bath(it) = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
+! zero-temperature correlation function     
+     zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
+  end do
+
+end subroutine calc_bath_correlation
+!--------------------------------------------------------------------------------------
+subroutine FT_bath_correlation
+  use global_variables
+  implicit none
+  real(8) :: tt
+  integer :: it
+  
+
+  zGamma_bath_zero = 0d0
+  zGamma_bath_p_delta = 0d0
+  zGamma_bath_m_delta = 0d0
+  do it = 0, nt+1
+    tt = dt*it
+
+    zGamma_bath_zero = zGamma_bath_zero + zcorr_bath(it)
+    zGamma_bath_p_delta = zGamma_bath_p_delta + zcorr_bath(it)*exp(zi*tt)
+    zGamma_bath_m_delta = zGamma_bath_m_delta + zcorr_bath(it)*exp(-zi*tt)
+
+  end do
+
+  zGamma_bath_zero = zGamma_bath_zero*dt
+  zGamma_bath_p_delta = zGamma_bath_p_delta*dt
+  zGamma_bath_m_delta = zGamma_bath_m_delta*dt
+
+  gamma_bath_zero = 2d0*real(zGamma_bath_zero)
+  gamma_bath_p_delta= 2d0*real(zGamma_bath_p_delta)
+  gamma_bath_m_delta= 2d0*real(zGamma_bath_m_delta)
+
+  s_bath_zero = aimag(zGamma_bath_zero)
+  s_bath_p_delta = aimag(zGamma_bath_p_delta)
+  s_bath_m_delta = aimag(zGamma_bath_m_delta)
+
+
+end subroutine FT_bath_correlation
 !--------------------------------------------------------------------------------------
 subroutine propagation
   use global_variables
@@ -141,6 +232,22 @@ subroutine propagation
   end do
   close(20)
 end subroutine propagation
+!--------------------------------------------------------------------------------------
+subroutine propagation_lindblad
+  use global_variables
+  implicit none
+  integer :: it
+
+
+  open(20,file='pop_t.out')
+  do it = 0, nt
+
+    write(20,"(999e26.16e3)")dt*it,real(zrho_dm_s(1,1)),real(zrho_dm_s(2,2)),zrho_dm_s(1,2)
+    call dt_evolve_lindblad(it)
+     
+  end do
+  close(20)
+end subroutine propagation_lindblad
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve(it)
   use global_variables
@@ -209,6 +316,88 @@ subroutine dt_evolve(it)
 
      
 end subroutine dt_evolve
+!--------------------------------------------------------------------------------------
+subroutine dt_evolve_lindblad(it)
+  use global_variables
+  implicit none
+  integer,intent(in) :: it
+  complex(8) :: k1(2,2), k2(2,2), k3(2,2), k4(2,2), zrho_tmp(2,2)
+  real(8) :: Et, Ham(2,2), tt
+  real(8) :: ss
+
+
+! k1
+  zrho_tmp = zrho_dm_s
+  tt = dt*it
+  Et = E0*sin(omega0*tt)
+
+  Ham(1,1) =  0.5d0+lamb_shift(1)
+  Ham(2,2) = -0.5d0+lamb_shift(2)
+  Ham(1,2) = Et
+  Ham(2,1) = Et
+
+  k1 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
+  k1(1,1) = k1(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
+  k1(2,1) = k1(2,1) -(1d0/T2)*zrho_tmp(2,1)
+  k1(1,2) = k1(1,2) -(1d0/T2)*zrho_tmp(1,2)
+  k1(2,2) = k1(2,2) -(1d0/T1)*(zrho_tmp(2,2)-rho_eq(2))
+
+! k2
+  zrho_tmp = zrho_dm_s + 0.5d0*dt*k1
+  tt = dt*it+0.5d0*dt
+  Et = E0*sin(omega0*tt)
+
+  Ham(1,1) =  0.5d0+lamb_shift(1)
+  Ham(2,2) = -0.5d0+lamb_shift(2)
+  Ham(1,2) = Et
+  Ham(2,1) = Et
+
+  k2 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
+  k2(1,1) = k2(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
+  k2(2,1) = k2(2,1) -(1d0/T2)*zrho_tmp(2,1)
+  k2(1,2) = k2(1,2) -(1d0/T2)*zrho_tmp(1,2)
+  k2(2,2) = k2(2,2) -(1d0/T1)*(zrho_tmp(2,2)-rho_eq(2))
+
+! k3
+  zrho_tmp = zrho_dm_s + 0.5d0*dt*k2
+  tt = dt*it+0.5d0*dt
+  Et = E0*sin(omega0*tt)
+
+  Ham(1,1) =  0.5d0+lamb_shift(1)
+  Ham(2,2) = -0.5d0+lamb_shift(2)
+  Ham(1,2) = Et
+  Ham(2,1) = Et
+
+  k3 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
+  k3(1,1) = k3(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
+  k3(2,1) = k3(2,1) -(1d0/T2)*zrho_tmp(2,1)
+  k3(1,2) = k3(1,2) -(1d0/T2)*zrho_tmp(1,2)
+  k3(2,2) = k3(2,2) -(1d0/T1)*(zrho_tmp(2,2)-rho_eq(2))
+
+! k4
+  zrho_tmp = zrho_dm_s + dt*k3
+  tt = dt*it+dt
+  Et = E0*sin(omega0*tt)
+
+  Ham(1,1) =  0.5d0+lamb_shift(1)
+  Ham(2,2) = -0.5d0+lamb_shift(2)
+  Ham(1,2) = Et
+  Ham(2,1) = Et
+
+  k4 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
+  k4(1,1) = k4(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
+  k4(2,1) = k4(2,1) -(1d0/T2)*zrho_tmp(2,1)
+  k4(1,2) = k4(1,2) -(1d0/T2)*zrho_tmp(1,2)
+  k4(2,2) = k4(2,2) -(1d0/T1)*(zrho_tmp(2,2)-rho_eq(2))
+
+
+! sum
+  
+  zrho_dm_s = zrho_dm_s + (dt/6d0)*(k1+2d0*k2+2d0*k3+k4)
+
+  
+
+end subroutine dt_evolve_lindblad
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve_zu_prop(it)
   use global_variables
