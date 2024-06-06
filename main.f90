@@ -329,12 +329,10 @@ subroutine dt_evolve_lindblad(it)
 ! k1
   zrho_tmp = zrho_dm_s
   tt = dt*it
-  Et = E0*sin(omega0*tt)
 
-  Ham(1,1) =  0.5d0+lamb_shift(1)
-  Ham(2,2) = -0.5d0+lamb_shift(2)
-  Ham(1,2) = Et
-  Ham(2,1) = Et
+  call calc_ham_matrix(ham,tt)
+  Ham(1,1) = Ham(1,1) + lamb_shift(1)
+  Ham(2,2) = Ham(2,2) + lamb_shift(2)
 
   k1 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
   k1(1,1) = k1(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
@@ -345,12 +343,10 @@ subroutine dt_evolve_lindblad(it)
 ! k2
   zrho_tmp = zrho_dm_s + 0.5d0*dt*k1
   tt = dt*it+0.5d0*dt
-  Et = E0*sin(omega0*tt)
 
-  Ham(1,1) =  0.5d0+lamb_shift(1)
-  Ham(2,2) = -0.5d0+lamb_shift(2)
-  Ham(1,2) = Et
-  Ham(2,1) = Et
+  call calc_ham_matrix(ham,tt)
+  Ham(1,1) = Ham(1,1) + lamb_shift(1)
+  Ham(2,2) = Ham(2,2) + lamb_shift(2)
 
   k2 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
   k2(1,1) = k2(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
@@ -361,12 +357,10 @@ subroutine dt_evolve_lindblad(it)
 ! k3
   zrho_tmp = zrho_dm_s + 0.5d0*dt*k2
   tt = dt*it+0.5d0*dt
-  Et = E0*sin(omega0*tt)
 
-  Ham(1,1) =  0.5d0+lamb_shift(1)
-  Ham(2,2) = -0.5d0+lamb_shift(2)
-  Ham(1,2) = Et
-  Ham(2,1) = Et
+  call calc_ham_matrix(ham,tt)
+  Ham(1,1) = Ham(1,1) + lamb_shift(1)
+  Ham(2,2) = Ham(2,2) + lamb_shift(2)
 
   k3 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
   k3(1,1) = k3(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
@@ -377,12 +371,10 @@ subroutine dt_evolve_lindblad(it)
 ! k4
   zrho_tmp = zrho_dm_s + dt*k3
   tt = dt*it+dt
-  Et = E0*sin(omega0*tt)
 
-  Ham(1,1) =  0.5d0+lamb_shift(1)
-  Ham(2,2) = -0.5d0+lamb_shift(2)
-  Ham(1,2) = Et
-  Ham(2,1) = Et
+  call calc_ham_matrix(ham,tt)
+  Ham(1,1) = Ham(1,1) + lamb_shift(1)
+  Ham(2,2) = Ham(2,2) + lamb_shift(2)
 
   k4 = -zi*(matmul(ham,zrho_tmp)-matmul(zrho_tmp,ham))
   k4(1,1) = k4(1,1) -(1d0/T1)*(zrho_tmp(1,1)-rho_eq(1))
@@ -409,12 +401,7 @@ subroutine dt_evolve_zu_prop(it)
   real(8) :: ss
 
   tt = dt*it+0.5d0*dt
-  Et = E0*sin(omega0*tt)
-
-  Ham(1,1) =  0.5d0
-  Ham(2,2) = -0.5d0
-  Ham(1,2) = Et
-  Ham(2,1) = Et
+  call calc_ham_matrix(ham,tt)
 
   eig_val(1) = 0.5d0*(ham(1,1)+ham(2,2)+sqrt((ham(2,2)-ham(1,1))**2+4d0*ham(1,2)**2))
   eig_val(2) = 0.5d0*(ham(1,1)+ham(2,2)-sqrt((ham(2,2)-ham(1,1))**2+4d0*ham(1,2)**2))
@@ -439,6 +426,22 @@ subroutine dt_evolve_zu_prop(it)
   
 
 end subroutine dt_evolve_zu_prop
+!--------------------------------------------------------------------------------------
+subroutine calc_ham_matrix(ham_mat, tt_in)
+  use global_variables
+  implicit none
+  real(8),intent(out) :: ham_mat(2,2)
+  real(8),intent(in) :: tt_in
+  real(8) :: Et
+
+  Et = E0*sin(omega0*tt_in)
+
+  ham_mat(1,1) =  0.5d0
+  ham_mat(2,2) = -0.5d0
+  ham_mat(1,2) = Et
+  ham_mat(2,1) = Et
+
+end subroutine calc_ham_matrix
 !--------------------------------------------------------------------------------------
 subroutine pre_propagation
   use global_variables
