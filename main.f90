@@ -469,6 +469,36 @@ subroutine pre_propagation
 
 end subroutine pre_propagation
 !--------------------------------------------------------------------------------------
+subroutine calc_Floquet_states
+  use global_variables
+  implicit none
+  integer :: nf_cut, ndim_s, ndim_e
+  integer :: icut, i1, i2
+  complex(8),allocatable :: zham_f(:,:)
+
+  nf_cut = 5
+  ndim_s = 1 -2*nf_cut
+  ndim_e = 2 L+2*nf_cut
+  allocatable(zham_f(ndim_s:ndim_e))
+  zham_f = 0d0
+
+  do icut = -nf_cut, nf_cut
+    i1 = 1 + icut*2
+    i2 = 1 + icut*2
+    zham_f(i1:i2,i1:i2) = 0.5d0*zSz(1:2,1:2)
+    zham_f(i1,i1) = zham_f(i1,i1) + icut*omega0
+    zham_f(i2,i2) = zham_f(i2,i2) + icut*omega0
+
+    if(icut /= nf_cut)then
+      zham_f(i1+2:i2+2,i1:i2) =  0.5d0*zi*E0*zSx(1:2,1:2)
+      zham_f(i1:i2,i1+2:i2+2) = -0.5d0*zi*E0*zSx(1:2,1:2)
+    end if
+
+  end do
+
+
+end subroutine calc_Floquet_states
+!--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
