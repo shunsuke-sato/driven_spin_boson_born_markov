@@ -38,6 +38,9 @@ module global_variables
 ! lindblad eq.
   real(8) :: H_LS(2,2), lamb_shift(2), rho_eq(2)
   real(8) :: T1, T2
+
+! Floquet analysis
+  logical,parameter :: if_floquet_analysis = .true.
   
 end module global_variables
 !--------------------------------------------------------------------------------------
@@ -88,6 +91,13 @@ subroutine input
   nt = aint(Tprop/dt) + 1
 
   
+
+  zSx = 0d0
+  zSx(1,2) = 1d0; zSx(2,1) = 1d0 
+  zSy = 0d0
+  zSy(1,2) = -zi; zSy(2,1) = zi
+  zSz = 0d0
+  zSz(1,1) = 1d0; zSz(2,2) = -1d0
   
 end subroutine input
 !--------------------------------------------------------------------------------------
@@ -114,12 +124,7 @@ subroutine initialization
   zu_prop_memory = 0d0
   zu_prop_memory(:,:,0) = zu_prop(:,:)
 
-  zSx = 0d0
-  zSx(1,2) = 1d0; zSx(2,1) = 1d0 
-  zSy = 0d0
-  zSy(1,2) = -zi; zSy(2,1) = zi
-  zSz = 0d0
-  zSz(1,1) = 1d0; zSz(2,2) = -1d0
+  if(if_floquet_analysis) call calc_Floquet_states
 
   
 end subroutine initialization
@@ -153,13 +158,7 @@ subroutine initialization_Lindblad
   T2 = 1d0/T2
 
 
-  zSx = 0d0
-  zSx(1,2) = 1d0; zSx(2,1) = 1d0 
-  zSy = 0d0
-  zSy(1,2) = -zi; zSy(2,1) = zi
-  zSz = 0d0
-  zSz(1,1) = 1d0; zSz(2,2) = -1d0
-
+  if(if_floquet_analysis) call calc_Floquet_states
   
 end subroutine initialization_Lindblad
 !--------------------------------------------------------------------------------------
@@ -475,11 +474,17 @@ subroutine calc_Floquet_states
   integer :: nf_cut, ndim_s, ndim_e
   integer :: icut, i1, i2
   complex(8),allocatable :: zham_f(:,:)
+  real(8),allocatable :: eps_f(:)
+! lapack
+  integer :: ndim, lwork, infor
+  complex(8),allocatable :: work(:)
+  real(8),allocatable :: rwork(:)
 
   nf_cut = 5
   ndim_s = 1 -2*nf_cut
-  ndim_e = 2 L+2*nf_cut
-  allocatable(zham_f(ndim_s:ndim_e))
+  ndim_e = 2 +2*nf_cut
+  allocate(zham_f(ndim_s:ndim_e,ndim_s:ndim_e))
+  allocate(eps_f(ndim_s:ndim_e))
   zham_f = 0d0
 
   do icut = -nf_cut, nf_cut
@@ -496,6 +501,14 @@ subroutine calc_Floquet_states
 
   end do
 
+! diagonalization
+  ndim = ndim_e-ndim_s+1
+  lwork = 2*(ndim+1)*ndim+64
+  allocate(work(lwork), rwork(max(1,3*ndim-2)))
+  call zheev('V', 'U', ndim, zham_f, ndim, eps_f, work, lwork, rwork, infor)
+
+
+  stop
 
 end subroutine calc_Floquet_states
 !--------------------------------------------------------------------------------------
