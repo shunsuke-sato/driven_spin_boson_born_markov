@@ -74,20 +74,20 @@ subroutine input
   real(8) :: ancycle
 
 ! scheme
-!  n_propagation_scheme = N_propagation_Born
-  n_propagation_scheme = N_propagation_Lindblad
+  n_propagation_scheme = N_propagation_Born
+!  n_propagation_scheme = N_propagation_Lindblad
 
 ! laser  
-  E0 = 0.1d0
+  E0 = 0.5d0
   omega0 = 1.0d0
 
 ! propagation
-  Tprop = 20000d0
+  Tprop = 200d0
   dt = 0.01d0
 
 ! bath  
   omega_c = 0.5d0
-  eta = 0.001d0 !1d0 ! debug
+  eta = 0.1d0 !1d0 ! debug
   beta_temp = 1d0
   T_memory_cut  = 10d0
   rx = 1d0
@@ -238,7 +238,10 @@ subroutine propagation
   use global_variables
   implicit none
   integer :: it
+  real(8) :: S_F_fidelity, S_F_fidelity_ave
 
+  if(if_floquet_analysis)open(31,file="floquet_fidelity.out")
+  S_F_fidelity_ave = 0d0
   call pre_propagation
 
   open(20,file='pop_t.out')
@@ -247,10 +250,23 @@ subroutine propagation
     zrho_dm_s = matmul(zu_prop_memory(:,:,it), &
       matmul(zrho_dm, conjg(transpose(zu_prop_memory(:,:,it)))))
     write(20,"(999e26.16e3)")dt*it,real(zrho_dm_s(1,1)),real(zrho_dm_s(2,2)),zrho_dm_s(1,2)
+
+    if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
+      call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, it*dt)
+      write(31,"(999e26.16e3)")dt*it,S_F_fidelity
+      S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
+    end if
     call dt_evolve(it)
      
   end do
   close(20)
+
+
+  if(if_floquet_analysis)then
+    write(*,"(A,2x,e16.6e3)")'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
+
+    close(31)
+  end if
 end subroutine propagation
 !--------------------------------------------------------------------------------------
 subroutine propagation_lindblad
