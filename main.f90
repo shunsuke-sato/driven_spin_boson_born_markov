@@ -528,8 +528,8 @@ subroutine calc_Floquet_states
     i1 = 1 + icut*2
     i2 = 2 + icut*2
     zham_f(i1:i2,i1:i2) = 0.5d0*zSz(1:2,1:2)
-    zham_f(i1,i1) = zham_f(i1,i1) + icut*omega0
-    zham_f(i2,i2) = zham_f(i2,i2) + icut*omega0
+    zham_f(i1,i1) = zham_f(i1,i1) - icut*omega0
+    zham_f(i2,i2) = zham_f(i2,i2) - icut*omega0
 
     if(icut /= nf_cut)then
       zham_f(i1+2:i2+2,i1:i2) =  0.5d0*zi*E0*zSx(1:2,1:2)
@@ -551,7 +551,7 @@ subroutine calc_Floquet_states
 
   zstates_floquet = zham_f
   eps_floquet = eps_f
-  write(*,*)'eps_floquet(1:2)',eps_floquet(1:2)
+!  write(*,*)'eps_floquet(1:2)',eps_floquet(1:2)
 end subroutine calc_Floquet_states
 !--------------------------------------------------------------------------------------
 subroutine  provide_Floquet_state_vectors_at_t(zpsi_F_out, tt_in)
@@ -609,7 +609,7 @@ subroutine calc_instantaneous_floquet_fidelity(zrho_in, S_F_fidelity_out, tt_in)
     end do
   end do
 
-  write(*,*)S_F
+!  write(*,*)S_F
   S_F_fidelity_out = abs(S_F(1,1)*S_F(2,2)-S_F(1,2)*S_F(2,1))
 end subroutine calc_instantaneous_floquet_fidelity
 !--------------------------------------------------------------------------------------
