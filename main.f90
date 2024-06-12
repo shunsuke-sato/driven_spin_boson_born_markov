@@ -41,6 +41,11 @@ module global_variables
 
 ! Floquet analysis
   logical,parameter :: if_floquet_analysis = .true.
+  integer,parameter :: nf_cut = 30
+  integer :: nt_floquet_cycle
+  complex(8),allocatable :: zstates_floquet(:,:)
+  real(8),allocatable :: eps_floquet(:)
+  
   
 end module global_variables
 !--------------------------------------------------------------------------------------
@@ -66,31 +71,44 @@ end program main
 subroutine input
   use global_variables
   implicit none
+  real(8) :: ancycle
 
 ! scheme
 !  n_propagation_scheme = N_propagation_Born
   n_propagation_scheme = N_propagation_Lindblad
 
-
-  Tprop = 200d0
-  dt = 0.005d0
-
-
 ! laser  
   E0 = 0.1d0
-  omega0 = 1d0
+  omega0 = 1.0d0
+
+! propagation
+  Tprop = 20000d0
+  dt = 0.01d0
 
 ! bath  
   omega_c = 0.5d0
-  eta = 0.1d0 !1d0 ! debug
+  eta = 0.001d0 !1d0 ! debug
   beta_temp = 1d0
   T_memory_cut  = 10d0
   rx = 1d0
   rz = 0d0
-  
-  nt = aint(Tprop/dt) + 1
 
-  
+! optimizing parameters
+  write(*,"(A,2x,e16.6e3)")"Tprop (input) =", Tprop
+
+  ancycle = aint(max(Tprop, 0d0)/(2d0*pi/omega0))
+  Tprop = (1+ancycle)*2d0*pi/omega0
+
+  write(*,"(A,2x,e26.16e3)")"Tprop (mod.)  =", Tprop
+
+  write(*,"(A,2x,e26.16e3)")"dt (input) =", dt
+  nt = nint(Tprop/dt) + 1
+  dt = Tprop/nt
+
+  nt_floquet_cycle = nint((2d0*pi/omega0)/dt)
+  write(*,*)'aint',aint(Tprop/dt)
+  write(*,"(A,2x,e26.16e3)")"dt (mod.) =", dt
+  write(*,"(A,2x,I9)")"nt (mod.) =", nt
 
   zSx = 0d0
   zSx(1,2) = 1d0; zSx(2,1) = 1d0 
@@ -148,6 +166,7 @@ subroutine initialization_Lindblad
   lamb_shift(1) = s_bath_zero*rz**2 + s_bath_p_delta*rx**2
   lamb_shift(2) = s_bath_zero*rz**2 + s_bath_m_delta*rx**2
 
+
   rho_eq(1) = gamma_bath_m_delta/(gamma_bath_p_delta+gamma_bath_m_delta)
   rho_eq(2) = gamma_bath_p_delta/(gamma_bath_p_delta+gamma_bath_m_delta)
 
@@ -157,7 +176,9 @@ subroutine initialization_Lindblad
   T2 = 0.5d0*rx**2*(gamma_bath_p_delta+gamma_bath_m_delta) + rz**2*gamma_bath_zero
   T2 = 1d0/T2
 
-
+  write(*,"(A,2x,999e26.16e3)")"lamb_shift=",lamb_shift
+  write(*,"(A,2x,999e26.16e3)")"T1=",T1
+  write(*,"(A,2x,999e26.16e3)")"T2=",T2
   if(if_floquet_analysis) call calc_Floquet_states
   
 end subroutine initialization_Lindblad
@@ -236,16 +257,31 @@ subroutine propagation_lindblad
   use global_variables
   implicit none
   integer :: it
+  real(8) :: S_F_fidelity, S_F_fidelity_ave
 
 
-  open(20,file='pop_t.out')
+  if(if_floquet_analysis)open(31,file="floquet_fidelity_ldndblad.out")
+  S_F_fidelity_ave = 0d0
+  open(20,file='pop_t_lindblad.out')
   do it = 0, nt
 
     write(20,"(999e26.16e3)")dt*it,real(zrho_dm_s(1,1)),real(zrho_dm_s(2,2)),zrho_dm_s(1,2)
+
+    if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
+      call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, it*dt)
+      write(31,"(999e26.16e3)")dt*it,S_F_fidelity
+      S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
+    end if
     call dt_evolve_lindblad(it)
      
   end do
   close(20)
+
+  if(if_floquet_analysis)then
+    write(*,"(A,2x,e16.6e3)")'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
+
+    close(31)
+  end if
 end subroutine propagation_lindblad
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve(it)
@@ -468,10 +504,12 @@ subroutine pre_propagation
 
 end subroutine pre_propagation
 !--------------------------------------------------------------------------------------
+! Here, H_ext(t) = E_0*sin(omega_0*t)*S_x is assumed
+!--------------------------------------------------------------------------------------
 subroutine calc_Floquet_states
   use global_variables
   implicit none
-  integer :: nf_cut, ndim_s, ndim_e
+  integer :: ndim_s, ndim_e
   integer :: icut, i1, i2
   complex(8),allocatable :: zham_f(:,:)
   real(8),allocatable :: eps_f(:)
@@ -480,7 +518,6 @@ subroutine calc_Floquet_states
   complex(8),allocatable :: work(:)
   real(8),allocatable :: rwork(:)
 
-  nf_cut = 5
   ndim_s = 1 -2*nf_cut
   ndim_e = 2 +2*nf_cut
   allocate(zham_f(ndim_s:ndim_e,ndim_s:ndim_e))
@@ -489,7 +526,7 @@ subroutine calc_Floquet_states
 
   do icut = -nf_cut, nf_cut
     i1 = 1 + icut*2
-    i2 = 1 + icut*2
+    i2 = 2 + icut*2
     zham_f(i1:i2,i1:i2) = 0.5d0*zSz(1:2,1:2)
     zham_f(i1,i1) = zham_f(i1,i1) + icut*omega0
     zham_f(i2,i2) = zham_f(i2,i2) + icut*omega0
@@ -508,11 +545,118 @@ subroutine calc_Floquet_states
   call zheev('V', 'U', ndim, zham_f, ndim, eps_f, work, lwork, rwork, infor)
 
 
-  stop
+  allocate(zstates_floquet(ndim_s:ndim_e,ndim_s:ndim_e))
+  allocate(eps_floquet(ndim_s:ndim_e))
 
+
+  zstates_floquet = zham_f
+  eps_floquet = eps_f
+  write(*,*)'eps_floquet(1:2)',eps_floquet(1:2)
 end subroutine calc_Floquet_states
 !--------------------------------------------------------------------------------------
+subroutine  provide_Floquet_state_vectors_at_t(zpsi_F_out, tt_in)
+  use global_variables
+  implicit none
+  complex(8),intent(out) :: zpsi_F_out(2,2)
+  real(8),intent(in) :: tt_in
+  integer :: ndim_s, ndim_e
+  integer :: icut, i1, i2
+
+
+  ndim_s = 1 -2*nf_cut
+  ndim_e = 2 +2*nf_cut
+
+  zpsi_F_out = 0d0
+  do icut = -nf_cut, nf_cut
+    i1 = 1 + icut*2
+    i2 = 2 + icut*2
+
+    zpsi_F_out(:,1) = zpsi_F_out(:,1) + exp(-zi*omega0*icut*tt_in)*zstates_floquet(i1:i2,1)
+    zpsi_F_out(:,2) = zpsi_F_out(:,2) + exp(-zi*omega0*icut*tt_in)*zstates_floquet(i1:i2,2)
+  end do
+  zpsi_F_out(:,1) = zpsi_F_out(:,1)*exp(-zi*eps_floquet(1)*tt_in)
+  zpsi_F_out(:,2) = zpsi_F_out(:,2)*exp(-zi*eps_floquet(2)*tt_in)
+
+
+!  write(*,*)'norm',sum(abs(zpsi_F_out)**2), sum(conjg(zpsi_F_out(:,1))*zpsi_F_out(:,2))
+  
+end subroutine provide_Floquet_state_vectors_at_t
 !--------------------------------------------------------------------------------------
+subroutine calc_instantaneous_floquet_fidelity(zrho_in, S_F_fidelity_out, tt_in)
+  use global_variables
+  implicit none
+  complex(8),intent(in) :: zrho_in(2,2)
+  real(8),intent(in) :: tt_in
+  real(8),intent(out) :: S_F_fidelity_out
+  complex(8) :: zstates_nat(2,2), zpsi_F(2,2)
+  real(8) :: occ_nat(2)
+  real(8) :: S_F(2,2)
+  integer :: i,j
+  complex(8) :: zs
+
+  S_F_fidelity_out = 0d0
+  call diag_2x2(zrho_in, zstates_nat, occ_nat)
+  
+  call provide_Floquet_state_vectors_at_t(zpsi_F, tt_in)
+
+
+  do i = 1,2
+    do j = 1,2
+
+      zs = sum(conjg(zstates_nat(:,i))*zpsi_F(:,j))
+      S_F(i,j) = abs(zs)**2
+
+    end do
+  end do
+
+  write(*,*)S_F
+  S_F_fidelity_out = abs(S_F(1,1)*S_F(2,2)-S_F(1,2)*S_F(2,1))
+end subroutine calc_instantaneous_floquet_fidelity
+!--------------------------------------------------------------------------------------
+subroutine diag_2x2(zmat, zvec, lambda)
+  implicit none
+  complex(8),intent(in) :: zmat(2,2)
+  complex(8),intent(out) :: zvec(2,2)
+  real(8),intent(out) :: lambda(2)
+  real(8) :: a, c
+  complex(8) :: zb
+  real(8) :: ss
+
+  zvec = 0d0
+  lambda = 0d0
+
+  a  = zmat(1,1)
+  c  = zmat(2,2)
+  zb = zmat(1,2)
+
+  lambda(1) = 0.5d0*((a+c) + sqrt((a-c)**2 + 4d0*abs(zb)**2)) 
+  lambda(2) = 0.5d0*((a+c) - sqrt((a-c)**2 + 4d0*abs(zb)**2)) 
+
+
+  if( abs(lambda(1) - a) > abs(lambda(1) - c)  ) then
+    zvec(2,1) = 1d0
+    zvec(1,1) = zb/(lambda(1)-a)
+
+    zvec(1,2) = 1d0
+    zvec(2,2) = conjg(zb)/(lambda(2)-c)
+  else
+    zvec(1,1) = 1d0
+    zvec(2,1) = conjg(zb)/(lambda(1)-c)
+
+    zvec(2,2) = 1d0
+    zvec(1,2) = zb/(lambda(2)-a)
+  end if
+
+!  write(*,*)'Error:', sum(abs(matmul(zmat, zvec(:,1))-lambda(1)*zvec(:,1))**2) &
+!      +sum(abs(matmul(zmat, zvec(:,2))-lambda(2)*zvec(:,2))**2)
+  
+  ss = sum(abs(zvec(:,1))**2)
+  zvec(:,1) = zvec(:,1)/sqrt(ss)
+
+  ss = sum(abs(zvec(:,2))**2)
+  zvec(:,2) = zvec(:,2)/sqrt(ss)
+
+end subroutine diag_2x2
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
