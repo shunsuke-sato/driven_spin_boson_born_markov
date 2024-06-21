@@ -244,12 +244,20 @@ subroutine propagation
   implicit none
   integer :: it
   real(8) :: S_F_fidelity, S_F_fidelity_ave
+  character(256) :: cmethod
 
-  if(if_floquet_analysis)open(31,file="floquet_fidelity.out")
+  if(n_propagation_scheme == N_propagation_Born)then
+    cmethod='born'
+  else if(n_propagation_scheme == N_propagation_Redfield)then
+    cmethod='redfield'
+  end if
+
+
+  if(if_floquet_analysis)open(31,file="floquet_fidelity_"//trim(cmethod)//".out")
   S_F_fidelity_ave = 0d0
   call pre_propagation
 
-  open(20,file='pop_t.out')
+  open(20,file='pop_t_'//trim(cmethod)//'.out')
   do it = 0, nt
 
     zrho_dm_s = matmul(zu_prop_memory(:,:,it), &
@@ -261,7 +269,14 @@ subroutine propagation
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
     end if
-    call dt_evolve(it)
+
+    if(n_propagation_scheme == N_propagation_Born)then
+      call dt_evolve(it)
+    else if(n_propagation_scheme == N_propagation_Redfield)then
+      call dt_evolve_Redfield(it)
+    else
+      stop 'Error in propagation'
+    end if
      
   end do
   close(20)
@@ -372,6 +387,80 @@ subroutine dt_evolve(it)
 
      
 end subroutine dt_evolve
+!--------------------------------------------------------------------------------------
+subroutine dt_evolve_Redfield(it)
+  use global_variables
+  implicit none
+  integer,intent(in) :: it
+  integer :: it_t
+  complex(8) :: z_drho_dt(2,2), z_drho_dt_pred(2,2)
+  complex(8) :: zrho_dm_old(2,2)
+  complex(8) :: zA_t(2,2), zAt_zrhot(2,2)
+
+  zrho_dm_old = zrho_dm
+
+
+! predictor
+  if(it/=0)then
+
+    it_t = 0
+    zAt_zrhot(:,:) = matmul(zAt_memory(:,:, it-it_t), zrho_dm)
+    z_drho_dt(:,:) = -0.5d0*zcorr_bath(0) &
+      *(matmul(zAt_memory(:,:,it),zAt_zrhot(:,:)) &
+      -matmul(zAt_zrhot(:,:),zAt_memory(:,:,it)))
+
+    do it_t = 1, it-1
+      zAt_zrhot(:,:) = matmul(zAt_memory(:,:, it-it_t), zrho_dm)
+      z_drho_dt(:,:) = z_drho_dt(:,:) &
+        -zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it),zAt_zrhot(:,:)) &
+        -matmul(zAt_zrhot(:,:),zAt_memory(:,:,it)))
+    end do
+
+    it_t = it
+    zAt_zrhot(:,:) = matmul(zAt_memory(:,:, it-it_t), zrho_dm)
+    z_drho_dt(:,:) = z_drho_dt(:,:) &
+      -0.5d0*zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it),zAt_zrhot(:,:)) &
+      -matmul(zAt_zrhot(:,:),zAt_memory(:,:,it)))
+  else
+    z_drho_dt = 0d0
+  end if
+
+  z_drho_dt(:,:) = z_drho_dt(:,:) +  transpose(conjg(z_drho_dt(:,:)))
+  z_drho_dt = z_drho_dt*dt
+
+  z_drho_dt_pred = z_drho_dt
+
+  zrho_dm = zrho_dm + dt* z_drho_dt
+
+! corrector
+    it_t = 0
+    zAt_zrhot(:,:) = matmul(zAt_memory(:,:, it+1-it_t), zrho_dm)
+
+    z_drho_dt(:,:) = &
+      -0.5d0*zcorr_bath(0) &
+      *(matmul(zAt_memory(:,:,it+1),zAt_zrhot(:,:)) &
+      -matmul(zAt_zrhot(:,:),zAt_memory(:,:,it+1)))
+
+    do it_t = 1, it+1-1
+      zAt_zrhot(:,:) = matmul(zAt_memory(:,:, it+1-it_t), zrho_dm)
+      z_drho_dt(:,:) = z_drho_dt(:,:) &
+        -zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it+1),zAt_zrhot(:,:)) &
+        -matmul(zAt_zrhot(:,:),zAt_memory(:,:,it+1)))
+    end do
+
+    it_t = it+1
+    zAt_zrhot(:,:) = matmul(zAt_memory(:,:, it+1-it_t), zrho_dm)
+    z_drho_dt(:,:) = z_drho_dt(:,:) &
+      -0.5d0*zcorr_bath(it_t)*(matmul(zAt_memory(:,:,it+1),zAt_zrhot(:,:)) &
+      -matmul(zAt_zrhot(:,:),zAt_memory(:,:,it+1)))
+
+    z_drho_dt(:,:) = z_drho_dt(:,:) +  transpose(conjg(z_drho_dt(:,:)))
+    z_drho_dt = z_drho_dt*dt
+
+    zrho_dm = zrho_dm_old + 0.5d0*dt*(z_drho_dt + z_drho_dt_pred)
+
+     
+end subroutine dt_evolve_Redfield
 !--------------------------------------------------------------------------------------
 subroutine dt_evolve_lindblad(it)
   use global_variables
