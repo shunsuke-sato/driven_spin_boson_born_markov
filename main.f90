@@ -35,6 +35,8 @@ module global_variables
   integer,parameter :: N_propagation_Redfield = 1
   integer,parameter :: N_propagation_Lindblad = 2
 
+  integer,parameter :: N_propagation_fidelity_analysis = -1
+
 ! lindblad eq.
   real(8) :: H_LS(2,2), lamb_shift(2), rho_eq(2)
   real(8) :: T1, T2
@@ -62,6 +64,8 @@ program main
     case(N_propagation_Lindblad)
       call initialization_Lindblad
       call propagation_Lindblad
+    case(N_propagation_fidelity_analysis)
+      call fidelity_analysis
     case default
       stop 'Error: Invalid propagation scheme'
     end select
@@ -74,15 +78,16 @@ subroutine input
   real(8) :: ancycle
 
 ! scheme
-  n_propagation_scheme = N_propagation_Born
+!  n_propagation_scheme = N_propagation_Born
 !  n_propagation_scheme = N_propagation_Lindblad
+  n_propagation_scheme = N_propagation_fidelity_analysis
 
 ! laser  
-  E0 = 0.5d0
+  E0 = 0.50d0
   omega0 = 1.0d0
 
 ! propagation
-  Tprop = 200d0
+  Tprop = 400d0
   dt = 0.01d0
 
 ! bath  
@@ -674,7 +679,81 @@ subroutine diag_2x2(zmat, zvec, lambda)
 
 end subroutine diag_2x2
 !--------------------------------------------------------------------------------------
+subroutine fidelity_analysis
+  use global_variables
+  implicit none
+  real(8) :: a,br,bi,c, tmp
+  complex(8) :: zb
+  complex(8),allocatable :: zrho_dm_Born(:,:,:)
+  complex(8),allocatable :: zrho_dm_Lindblad(:,:,:)
+  integer :: it
+  complex(8) :: zvec(2,2), zrho_dm_sqrt(2,2)
+  complex(8) :: zS_fidelity_mat(2,2)
+  real(8) :: occ(2), occ_sqrt(2), lambda(2)
+  real(8) :: fidelity_self, fidelity_born_vs_lindblad
+  
+
+  allocate(zrho_dm_Born(2,2,0:nt))
+  allocate(zrho_dm_Lindblad(2,2,0:nt))
+
+  open(40,file='pop_t.out')
+  open(41,file='pop_t_lindblad.out')
+  do it = 0, nt
+    read(40,*)tmp,a,c,br,bi
+    zrho_dm_Born(1,1,it) = a
+    zrho_dm_Born(2,1,it) = br - zi*bi
+    zrho_dm_Born(1,2,it) = br + zi*bi
+    zrho_dm_Born(2,2,it) = c
+
+    read(41,*)tmp,a,c,br,bi
+    zrho_dm_lindblad(1,1,it) = a
+    zrho_dm_lindblad(2,1,it) = br - zi*bi
+    zrho_dm_lindblad(1,2,it) = br + zi*bi
+    zrho_dm_lindblad(2,2,it) = c
+
+  end do
+  close(40)
+  close(41)
+
+  open(42,file="fidelity_t.out")
+! compute fidelity
+  do it = 0, nt
+    call diag_2x2(zrho_dm_Born(:,:,it), zvec, occ)
+    occ_sqrt = sqrt(occ)
+    zrho_dm_sqrt(1,1) = occ_sqrt(1)* zvec(1,1)*conjg(zvec(1,1)) &
+                      + occ_sqrt(2)* zvec(1,2)*conjg(zvec(1,2))
+
+    zrho_dm_sqrt(2,1) = occ_sqrt(1)* zvec(2,1)*conjg(zvec(1,1)) &
+                      + occ_sqrt(2)* zvec(2,2)*conjg(zvec(1,2))
+
+    zrho_dm_sqrt(1,2) = occ_sqrt(1)* zvec(1,1)*conjg(zvec(2,1)) &
+                      + occ_sqrt(2)* zvec(1,2)*conjg(zvec(2,2))
+
+    zrho_dm_sqrt(2,2) = occ_sqrt(1)* zvec(2,1)*conjg(zvec(2,1)) &
+                      + occ_sqrt(2)* zvec(2,2)*conjg(zvec(2,2))
+
+
+! self fidelity    
+
+    zS_fidelity_mat = matmul(matmul(zrho_dm_sqrt, zrho_dm_born(:,:,it)),zrho_dm_sqrt)
+    call diag_2x2(zS_fidelity_mat, zvec, lambda)
+
+    fidelity_self = sum(sqrt(lambda))**2
+
+
+    zS_fidelity_mat = matmul(matmul(zrho_dm_sqrt, zrho_dm_lindblad(:,:,it)),zrho_dm_sqrt)
+    call diag_2x2(zS_fidelity_mat, zvec, lambda)
+
+    fidelity_born_vs_lindblad = sum(sqrt(lambda))**2
+
+    write(42,"(999e26.16e3)")dt*it, fidelity_self, fidelity_born_vs_lindblad
+
+! Born vs Lindblad
+  end do
+  close(42)
+end subroutine fidelity_analysis
 !--------------------------------------------------------------------------------------
+
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
