@@ -804,7 +804,14 @@ subroutine fidelity_analysis
   real(8) :: a,br,bi,c, tmp
   complex(8) :: zb
   complex(8),allocatable :: zrho_dm_Born(:,:,:)
+  complex(8),allocatable :: zrho_dm_Redfield(:,:,:)
   complex(8),allocatable :: zrho_dm_Lindblad(:,:,:)
+  complex(8),allocatable :: zrho_dm_Born_eq(:,:,:)
+  complex(8),allocatable :: zrho_dm_Redfield_eq(:,:,:)
+  complex(8),allocatable :: zrho_dm_Lindblad_eq(:,:,:)
+  complex(8),allocatable :: zrho_dm_Born_delta(:,:,:)
+  complex(8),allocatable :: zrho_dm_Redfield_delta(:,:,:)
+  complex(8),allocatable :: zrho_dm_Lindblad_delta(:,:,:)
   integer :: it
   complex(8) :: zvec(2,2), zrho_dm_sqrt(2,2)
   complex(8) :: zS_fidelity_mat(2,2)
@@ -813,10 +820,18 @@ subroutine fidelity_analysis
   
 
   allocate(zrho_dm_Born(2,2,0:nt))
+  allocate(zrho_dm_Redfield(2,2,0:nt))
   allocate(zrho_dm_Lindblad(2,2,0:nt))
+  allocate(zrho_dm_Born_eq(2,2,0:nt))
+  allocate(zrho_dm_Redfield_eq(2,2,0:nt))
+  allocate(zrho_dm_Lindblad_eq(2,2,0:nt))
+  allocate(zrho_dm_Born_delta(2,2,0:nt))
+  allocate(zrho_dm_Redfield_delta(2,2,0:nt))
+  allocate(zrho_dm_Lindblad_delta(2,2,0:nt))
 
-  open(40,file='pop_t.out')
-  open(41,file='pop_t_lindblad.out')
+  open(40,file='pop_t_born.out')
+  open(41,file='pop_t_redfield.out')
+  open(42,file='pop_t_lindblad.out')
   do it = 0, nt
     read(40,*)tmp,a,c,br,bi
     zrho_dm_Born(1,1,it) = a
@@ -825,6 +840,12 @@ subroutine fidelity_analysis
     zrho_dm_Born(2,2,it) = c
 
     read(41,*)tmp,a,c,br,bi
+    zrho_dm_redfield(1,1,it) = a
+    zrho_dm_redfield(2,1,it) = br - zi*bi
+    zrho_dm_redfield(1,2,it) = br + zi*bi
+    zrho_dm_redfield(2,2,it) = c
+
+    read(42,*)tmp,a,c,br,bi
     zrho_dm_lindblad(1,1,it) = a
     zrho_dm_lindblad(2,1,it) = br - zi*bi
     zrho_dm_lindblad(1,2,it) = br + zi*bi
@@ -833,6 +854,46 @@ subroutine fidelity_analysis
   end do
   close(40)
   close(41)
+  close(42)
+
+
+  open(40,file='pop_t_born_eq.out')
+  open(41,file='pop_t_redfield_eq.out')
+  open(42,file='pop_t_lindblad_eq.out')
+  do it = 0, nt
+    read(40,*)tmp,a,c,br,bi
+    zrho_dm_Born_eq(1,1,it) = a
+    zrho_dm_Born_eq(2,1,it) = br - zi*bi
+    zrho_dm_Born_eq(1,2,it) = br + zi*bi
+    zrho_dm_Born_eq(2,2,it) = c
+
+    read(41,*)tmp,a,c,br,bi
+    zrho_dm_redfield_eq(1,1,it) = a
+    zrho_dm_redfield_eq(2,1,it) = br - zi*bi
+    zrho_dm_redfield_eq(1,2,it) = br + zi*bi
+    zrho_dm_redfield_eq(2,2,it) = c
+
+    read(42,*)tmp,a,c,br,bi
+    zrho_dm_lindblad_eq(1,1,it) = a
+    zrho_dm_lindblad_eq(2,1,it) = br - zi*bi
+    zrho_dm_lindblad_eq(1,2,it) = br + zi*bi
+    zrho_dm_lindblad_eq(2,2,it) = c
+
+  end do
+  close(40)
+  close(41)
+  close(42)
+
+
+  zrho_dm_Born_delta = zrho_dm_Born - zrho_dm_born_eq
+  zrho_dm_Redfield_delta = zrho_dm_Redfield - zrho_dm_Redfield_eq
+  zrho_dm_Lindblad_delta = zrho_dm_Lindblad - zrho_dm_Lindblad_eq
+
+
+! Matrix distance analysis
+  open(51,file='matrix_distance_t.out')
+  
+  close(51)
 
   open(42,file="fidelity_t.out")
 ! compute fidelity
