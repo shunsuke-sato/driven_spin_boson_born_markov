@@ -798,6 +798,23 @@ subroutine diag_2x2(zmat, zvec, lambda)
 
 end subroutine diag_2x2
 !--------------------------------------------------------------------------------------
+subroutine matrix_norm(zAmat, norm)
+  implicit none
+  complex(8),intent(in) :: zAmat(2,2)
+  real(8),intent(out) :: norm
+  complex(8) :: zAmat_hc(2,2), zA2mat(2,2)
+  complex(8) :: zvec(2,2)
+  real(8) :: lambda(2)
+
+  zAmat_hc = conjg(transpose(zAmat))
+
+  zA2mat = matmul(zAmat_hc, zAmat)
+  call diag_2x2(zmat, zvec, lambda)
+
+  norm = sqrt(maxval(lambda))
+  
+end subroutine matrix_norm
+!--------------------------------------------------------------------------------------
 subroutine fidelity_analysis
   use global_variables
   implicit none
