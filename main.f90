@@ -76,27 +76,57 @@ subroutine input
   use global_variables
   implicit none
   real(8) :: ancycle
+  character(64) :: cmethod
 
+
+  read(*,*)cmethod
 ! scheme
-!  n_propagation_scheme = N_propagation_Born
-!  n_propagation_scheme = N_propagation_Lindblad
-  n_propagation_scheme = N_propagation_fidelity_analysis
+  if(cmethod == 'Born' .or. cmethod == 'born')then
+    n_propagation_scheme = N_propagation_Born
+  else if(cmethod == 'Redfield' .or. cmethod == 'redfield')then
+    n_propagation_scheme = N_propagation_Redfield
+  else if(cmethod =='Lidblad' .or. cmethod =='lindblad')then
+    n_propagation_scheme = N_propagation_Lindblad
+  else if(cmethod =='analysis')then
+    n_propagation_scheme = N_propagation_fidelity_analysis
+  else
+    stop 'Invalid Propagator'
+  end if
 
 ! laser  
-  E0 = 0.50d0
-  omega0 = 1.0d0
+!  E0 = 0.50d0
+!  omega0 = 1.0d0
+
+  read(*,*)E0
+  write(*,*)'E0=',E0
+  read(*,*)omega0
+  write(*,*)'omega0=',omega0
 
 ! propagation
-  Tprop = 400d0
-  dt = 0.01d0
+!  Tprop = 400d0
+!  dt = 0.01d0
+  read(*,*)Tprop
+  write(*,*)'Tprop=',Tprop
+  read(*,*)dt
+  write(*,*)'dt=',dt
 
 ! bath  
-  omega_c = 0.5d0
-  eta = 0.1d0 !1d0 ! debug
-  beta_temp = 1d0
-  T_memory_cut  = 10d0
-  rx = 1d0
-  rz = 0d0
+!  omega_c = 0.5d0
+!  eta = 0.1d0 !1d0 ! debug
+!  beta_temp = 1d0
+!  T_memory_cut  = 10d0
+!  rx = 1d0
+!  rz = 0d0
+
+  read(*,*)omega_c
+  write(*,*)'omega_c=',omega_c
+  read(*,*)eta
+  write(*,*)'eta=',eta
+  read(*,*)rx
+  write(*,*)'rx=',rx
+  read(*,*)rz
+  write(*,*)'rz=',rz
+  
 
 ! optimizing parameters
   write(*,"(A,2x,e16.6e3)")"Tprop (input) =", Tprop
