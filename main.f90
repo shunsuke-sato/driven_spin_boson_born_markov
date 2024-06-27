@@ -85,7 +85,7 @@ subroutine input
     n_propagation_scheme = N_propagation_Born
   else if(cmethod == 'Redfield' .or. cmethod == 'redfield')then
     n_propagation_scheme = N_propagation_Redfield
-  else if(cmethod =='Lidblad' .or. cmethod =='lindblad')then
+  else if(cmethod =='Lindblad' .or. cmethod =='lindblad')then
     n_propagation_scheme = N_propagation_Lindblad
   else if(cmethod =='analysis')then
     n_propagation_scheme = N_propagation_fidelity_analysis
