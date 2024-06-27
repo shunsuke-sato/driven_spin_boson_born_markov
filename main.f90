@@ -809,7 +809,7 @@ subroutine matrix_norm(zAmat, norm)
   zAmat_hc = conjg(transpose(zAmat))
 
   zA2mat = matmul(zAmat_hc, zAmat)
-  call diag_2x2(zmat, zvec, lambda)
+  call diag_2x2(zA2mat, zvec, lambda)
 
   norm = sqrt(maxval(lambda))
   
@@ -835,8 +835,8 @@ subroutine fidelity_analysis
   real(8) :: occ(2), occ_sqrt(2), lambda(2)
   real(8) :: fidelity_self, fidelity_born_vs_lindblad
   real(8),allocatable :: norm_t_zrho_dm_Born_delta(:)
-  real(8),allocatable :: distt_Born_vs_Redfield(:)
-  real(8),allocatable :: distt_Born_vs_Lindblad(:)
+  real(8),allocatable :: dist_Born_vs_Redfield(:)
+  real(8),allocatable :: dist_Born_vs_Lindblad(:)
 
 
   allocate(zrho_dm_Born(2,2,0:nt))
@@ -911,8 +911,8 @@ subroutine fidelity_analysis
 
 
   allocate(norm_t_zrho_dm_Born_delta(0:nt))
-  allocate(distt_Born_vs_Redfield(0:nt))
-  allocate(distt_Born_vs_Lindblad(0:nt))
+  allocate(dist_Born_vs_Redfield(0:nt))
+  allocate(dist_Born_vs_Lindblad(0:nt))
 
 ! Matrix distance analysis
   do it = 0, nt
