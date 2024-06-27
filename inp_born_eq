@@ -1,0 +1,9 @@
+'Born'    ! Propagator, 'Born', 'Redfield', 'Lindblad', 'analysis'
+0.0  ! E0
+1.0  ! omega0
+400d0  ! Tprop
+0.01   ! dt
+0.5d0 ! omega_c
+0.1d0 ! eta
+1d0   ! rx
+0d0   ! rz

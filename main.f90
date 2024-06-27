@@ -834,7 +834,10 @@ subroutine fidelity_analysis
   complex(8) :: zS_fidelity_mat(2,2)
   real(8) :: occ(2), occ_sqrt(2), lambda(2)
   real(8) :: fidelity_self, fidelity_born_vs_lindblad
-  
+  real(8),allocatable :: norm_t_zrho_dm_Born_delta(:)
+  real(8),allocatable :: distt_Born_vs_Redfield(:)
+  real(8),allocatable :: distt_Born_vs_Lindblad(:)
+
 
   allocate(zrho_dm_Born(2,2,0:nt))
   allocate(zrho_dm_Redfield(2,2,0:nt))
@@ -907,9 +910,29 @@ subroutine fidelity_analysis
   zrho_dm_Lindblad_delta = zrho_dm_Lindblad - zrho_dm_Lindblad_eq
 
 
+  allocate(norm_t_zrho_dm_Born_delta(0:nt))
+  allocate(distt_Born_vs_Redfield(0:nt))
+  allocate(distt_Born_vs_Lindblad(0:nt))
+
 ! Matrix distance analysis
+  do it = 0, nt
+    call matrix_norm(zrho_dm_Born_delta(:,:,it), norm_t_zrho_dm_Born_delta(it))
+    call matrix_norm(zrho_dm_Redfield_delta(:,:,it)-zrho_dm_Born_delta(:,:,it) &
+        , dist_Born_vs_Redfield(it))
+    call matrix_norm(zrho_dm_Lindblad_delta(:,:,it)-zrho_dm_Born_delta(:,:,it) &
+        , dist_Born_vs_Lindblad(it))
+  end do
+
   open(51,file='matrix_distance_t.out')
-  
+  write(51,"(A,2x,999e26.16e3)")"# Average norm, difference (Redfield), Lindblad" &
+      ,sum(norm_t_zrho_dm_Born_delta(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle &
+      ,sum(dist_Born_vs_Redfield(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle &
+      ,sum(dist_Born_vs_Lindblad(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle 
+  do it = 1, nt
+    write(51,"(999e26.16e3)")it*dt,norm_t_zrho_dm_Born_delta(it) &
+                                  ,dist_Born_vs_Redfield(it) &
+                                  ,dist_Born_vs_Lindblad(it)
+  end do
   close(51)
 
   open(42,file="fidelity_t.out")
