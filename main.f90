@@ -924,10 +924,13 @@ subroutine fidelity_analysis
   end do
 
   open(51,file='matrix_distance_t.out')
-  write(51,"(A,2x,999e26.16e3)")"# Average norm, difference (Redfield), Lindblad" &
+  write(51,"(A,2x,999e26.16e3)")"# Average norm, diff. (R, L), pop (B, R, L)" &
       ,sum(norm_t_zrho_dm_Born_delta(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle &
       ,sum(dist_Born_vs_Redfield(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle &
-      ,sum(dist_Born_vs_Lindblad(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle 
+      ,sum(dist_Born_vs_Lindblad(nt-nt_floquet_cycle+1:nt))/nt_floquet_cycle  &
+      ,real(sum(zrho_dm_Born_delta(1,1,nt-nt_floquet_cycle+1:nt)))/nt_floquet_cycle  &
+      ,real(sum(zrho_dm_Redfield_delta(1,1,nt-nt_floquet_cycle+1:nt)))/nt_floquet_cycle  &
+      ,real(sum(zrho_dm_Lindblad_delta(1,1,nt-nt_floquet_cycle+1:nt)))/nt_floquet_cycle
   do it = 1, nt
     write(51,"(999e26.16e3)")it*dt,norm_t_zrho_dm_Born_delta(it) &
                                   ,dist_Born_vs_Redfield(it) &
