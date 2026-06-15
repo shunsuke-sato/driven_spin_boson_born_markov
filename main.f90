@@ -334,7 +334,7 @@ subroutine propagation_lindblad
 
 
 
-  if(if_floquet_analysis)open(31,file="floquet_fidelity_ldndblad.out")
+  if(if_floquet_analysis)open(31,file="floquet_fidelity_lindblad.out")
   S_F_fidelity_ave = 0d0
   open(20,file='pop_t_lindblad.out')
   do it = 0, nt
