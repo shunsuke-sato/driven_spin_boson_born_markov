@@ -273,7 +273,8 @@ subroutine propagation
   use global_variables
   implicit none
   integer :: it
-  real(8) :: S_F_fidelity, S_F_fidelity_ave
+  real(8) :: S_F_fidelity, S_F_fidelity_ave ! Floquet state fidelity
+  real(8) :: S_B_fidelity, S_B_fidelity_ave ! Bare state fidelity
   character(256) :: cmethod
 
   if(n_propagation_scheme == N_propagation_Born)then
@@ -296,8 +297,10 @@ subroutine propagation
 
     if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
       call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, it*dt)
-      write(31,"(999e26.16e3)")dt*it,S_F_fidelity
+      call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt)
+      write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
+      S_B_fidelity_ave = S_B_fidelity_ave + S_B_fidelity
     end if
 
     if(n_propagation_scheme == N_propagation_Born)then
@@ -313,7 +316,10 @@ subroutine propagation
 
 
   if(if_floquet_analysis)then
-    write(*,"(A,2x,e16.6e3)")'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Bare state fidelity (cycle averaged)=',S_B_fidelity_ave/nt_floquet_cycle
 
     close(31)
   end if
@@ -323,7 +329,9 @@ subroutine propagation_lindblad
   use global_variables
   implicit none
   integer :: it
-  real(8) :: S_F_fidelity, S_F_fidelity_ave
+  real(8) :: S_F_fidelity, S_F_fidelity_ave ! Floquet state fidelity
+  real(8) :: S_B_fidelity, S_B_fidelity_ave ! Bare state fidelity
+
 
 
   if(if_floquet_analysis)open(31,file="floquet_fidelity_ldndblad.out")
@@ -335,8 +343,10 @@ subroutine propagation_lindblad
 
     if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
       call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, it*dt)
-      write(31,"(999e26.16e3)")dt*it,S_F_fidelity
+      call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt)
+      write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
+      S_B_fidelity_ave = S_B_fidelity_ave + S_B_fidelity
     end if
     call dt_evolve_lindblad(it)
      
@@ -344,7 +354,10 @@ subroutine propagation_lindblad
   close(20)
 
   if(if_floquet_analysis)then
-    write(*,"(A,2x,e16.6e3)")'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Bare state fidelity (cycle averaged)=',S_B_fidelity_ave/nt_floquet_cycle
 
     close(31)
   end if
@@ -752,6 +765,37 @@ subroutine calc_instantaneous_floquet_fidelity(zrho_in, S_F_fidelity_out, tt_in)
 !  write(*,*)S_F
   S_F_fidelity_out = abs(S_F(1,1)*S_F(2,2)-S_F(1,2)*S_F(2,1))
 end subroutine calc_instantaneous_floquet_fidelity
+!--------------------------------------------------------------------------------------
+subroutine calc_bare_state_fidelity(zrho_in, S_B_fidelity_out, tt_in)
+  use global_variables
+  implicit none
+  complex(8),intent(in) :: zrho_in(2,2)
+  real(8),intent(in) :: tt_in
+  real(8),intent(out) :: S_B_fidelity_out
+  complex(8) :: zstates_nat(2,2), zpsi_B(2,2)
+  real(8) :: occ_nat(2)
+  real(8) :: S_B(2,2)
+  integer :: i,j
+  complex(8) :: zs
+
+  S_B_fidelity_out = 0d0
+  call diag_2x2(zrho_in, zstates_nat, occ_nat)
+
+  zpsi_B(:,1) = [1d0, 0d0]
+  zpsi_B(:,2) = [0d0, 1d0]
+
+  do i = 1,2
+    do j = 1,2
+
+      zs = sum(conjg(zstates_nat(:,i))*zpsi_B(:,j))
+      S_B(i,j) = abs(zs)**2
+
+    end do
+  end do
+
+  S_B_fidelity_out = abs(S_B(1,1)*S_B(2,2)-S_B(1,2)*S_B(2,1))
+
+end subroutine calc_bare_state_fidelity
 !--------------------------------------------------------------------------------------
 subroutine diag_2x2(zmat, zvec, lambda)
   implicit none
