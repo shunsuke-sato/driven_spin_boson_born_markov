@@ -275,6 +275,8 @@ subroutine propagation
   integer :: it
   real(8) :: S_F_fidelity, S_F_fidelity_ave ! Floquet state fidelity
   real(8) :: S_B_fidelity, S_B_fidelity_ave ! Bare state fidelity
+  real(8) :: purity, normalized_purity, normalized_purity_ave ! Purity and normalized purity
+  complex(8) :: zrho_dm_square(2,2)
   character(256) :: cmethod
 
   if(n_propagation_scheme == N_propagation_Born)then
@@ -286,6 +288,8 @@ subroutine propagation
 
   if(if_floquet_analysis)open(31,file="floquet_fidelity_"//trim(cmethod)//".out")
   S_F_fidelity_ave = 0d0
+  S_B_fidelity_ave = 0d0
+  normalized_purity_ave = 0d0
   call pre_propagation
 
   open(20,file='pop_t_'//trim(cmethod)//'.out')
@@ -301,6 +305,12 @@ subroutine propagation
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
       S_B_fidelity_ave = S_B_fidelity_ave + S_B_fidelity
+      
+      zrho_dm_square = matmul(zrho_dm_s, zrho_dm_s)
+      purity = real(zrho_dm_square(1,1) + zrho_dm_square(2,2))
+      normalized_purity = (purity-0.5d0)/0.5d0
+      normalized_purity_ave = normalized_purity_ave + normalized_purity
+
     end if
 
     if(n_propagation_scheme == N_propagation_Born)then
@@ -320,6 +330,8 @@ subroutine propagation
         'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Bare state fidelity (cycle averaged)=',S_B_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Normalized purity (cycle averaged)=',normalized_purity_ave/nt_floquet_cycle
 
     close(31)
   end if
@@ -331,11 +343,14 @@ subroutine propagation_lindblad
   integer :: it
   real(8) :: S_F_fidelity, S_F_fidelity_ave ! Floquet state fidelity
   real(8) :: S_B_fidelity, S_B_fidelity_ave ! Bare state fidelity
-
+  real(8) :: purity, normalized_purity, normalized_purity_ave ! Purity and normalized purity
+  complex(8) :: zrho_dm_square(2,2)
 
 
   if(if_floquet_analysis)open(31,file="floquet_fidelity_lindblad.out")
   S_F_fidelity_ave = 0d0
+  S_B_fidelity_ave = 0d0
+  normalized_purity_ave = 0d0
   open(20,file='pop_t_lindblad.out')
   do it = 0, nt
 
@@ -347,6 +362,11 @@ subroutine propagation_lindblad
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
       S_B_fidelity_ave = S_B_fidelity_ave + S_B_fidelity
+
+      zrho_dm_square = matmul(zrho_dm_s, zrho_dm_s)
+      purity = real(zrho_dm_square(1,1) + zrho_dm_square(2,2))
+      normalized_purity = (purity-0.5d0)/0.5d0
+      normalized_purity_ave = normalized_purity_ave + normalized_purity
     end if
     call dt_evolve_lindblad(it)
      
@@ -358,6 +378,8 @@ subroutine propagation_lindblad
         'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Bare state fidelity (cycle averaged)=',S_B_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Normalized purity (cycle averaged)=',normalized_purity_ave/nt_floquet_cycle
 
     close(31)
   end if
