@@ -806,7 +806,7 @@ subroutine calc_instantaneous_floquet_fidelity(zrho_in, S_F_fidelity_out, &
   zpsi_tmp = matmul(zrho_in, zpsi_F(:,2))
   pop_floquet_out(2) = real(sum(conjg(zpsi_F(:,2))*zpsi_tmp(:)))
 
-  write(*,*)'floquet pop. sum=',sum(pop_floquet_out)
+!  write(*,*)'floquet pop. sum=',sum(pop_floquet_out)
 
 !  write(*,*)S_F
   S_F_fidelity_out = abs(S_F(1,1)*S_F(2,2)-S_F(1,2)*S_F(2,1))
