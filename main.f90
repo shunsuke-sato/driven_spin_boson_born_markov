@@ -119,7 +119,7 @@ subroutine input
 !  rz = 0d0
 
 
-  beta_temp = 1d10
+  beta_temp = 0d0 ! zero temperature
 !  beta_temp = 1d-6
 
   read(*,*)omega_c
@@ -242,7 +242,7 @@ subroutine calc_bath_correlation
 ! zero-temperature correlation function     
 !     zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
 ! general-temperature correlation function     
-     if(\beta_tmp > 0d0)then
+     if(beta_temp > 0d0)then
        zcorr_bath(it) = bath_corr_ohmic(tt, beta_temp, omega_c, eta)
      else
        zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
