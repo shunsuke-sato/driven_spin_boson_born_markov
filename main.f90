@@ -48,7 +48,7 @@ module global_variables
   complex(8),allocatable :: zstates_floquet(:,:)
   real(8),allocatable :: eps_floquet(:)
   
-  
+
 end module global_variables
 !--------------------------------------------------------------------------------------
 program main
@@ -117,6 +117,10 @@ subroutine input
 !  T_memory_cut  = 10d0
 !  rx = 1d0
 !  rz = 0d0
+
+
+  beta_temp = 1d10
+!  beta_temp = 1d-6
 
   read(*,*)omega_c
   write(*,*)'omega_c=',omega_c
@@ -223,6 +227,12 @@ subroutine calc_bath_correlation
   implicit none
   real(8) :: tt
   integer :: it
+  complex(8) :: zcorr_zero, zcorr_high
+
+  complex(8) :: bath_corr_ohmic
+  external :: bath_corr_ohmic
+
+  open(101,file="bath_correlation.out")
 
   allocate(zcorr_bath(0:nt+1))
   do it = 0, nt+1
@@ -230,8 +240,21 @@ subroutine calc_bath_correlation
 ! high-temperature correlation function     
 !     zcorr_bath(it) = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
 ! zero-temperature correlation function     
-     zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
+!     zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
+! general-temperature correlation function     
+     if(\beta_tmp > 0d0)then
+       zcorr_bath(it) = bath_corr_ohmic(tt, beta_temp, omega_c, eta)
+     else
+       zcorr_bath(it) = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
+     end if
+
+     zcorr_zero = eta*omega_c**2/(1d0+zi*omega_c*tt)**2
+     zcorr_high = 2d0*omega_c*eta/beta_temp/(1d0+(omega_c*tt)**2)
+     write(101,"(999e26.16e3)")dt*it,real(zcorr_bath(it)),aimag(zcorr_bath(it)), &
+       real(zcorr_zero),aimag(zcorr_zero),real(zcorr_high),aimag(zcorr_high)
   end do
+
+  close(101)
 
 end subroutine calc_bath_correlation
 !--------------------------------------------------------------------------------------
@@ -1066,7 +1089,95 @@ subroutine fidelity_analysis
   close(42)
 end subroutine fidelity_analysis
 !--------------------------------------------------------------------------------------
+function trigamma_complex_pos(z) result(psi1)
+  ! Complex trigamma psi_1(z) for Re(z) > 0.
+  !
+  ! Uses recurrence:
+  !   psi1(z) = psi1(z+M) + sum_{k=0}^{M-1} 1/(z+k)^2
+  !
+  ! and asymptotic expansion:
+  !   psi1(w) ~ 1/w + 1/(2w^2) + 1/(6w^3)
+  !             - 1/(30w^5) + 1/(42w^7)
+  !             - 1/(30w^9) + 5/(66w^11)
+  !             - 691/(2730w^13)
 
+  complex(8), intent(in) :: z
+  complex(8) :: psi1
+
+  complex(8) :: w
+  complex(8) :: inv
+  complex(8) :: asym
+
+  real(8), parameter :: r_asym = 16.0d0
+
+  psi1 = (0.0d0, 0.0d0)
+  w = z
+
+  ! Shift argument to a region where the asymptotic expansion is accurate.
+  do while (abs(w) < r_asym)
+    psi1 = psi1 + 1.0d0 / (w*w)
+    w = w + 1.0d0
+  end do
+
+  inv = 1.0d0 / w
+
+  asym = inv                           &
+      + 0.5d0              * inv**2    &
+      + (1.0d0/6.0d0)      * inv**3    &
+      - (1.0d0/30.0d0)     * inv**5    &
+      + (1.0d0/42.0d0)     * inv**7    &
+      - (1.0d0/30.0d0)     * inv**9    &
+      + (5.0d0/66.0d0)     * inv**11   &
+      - (691.0d0/2730.0d0) * inv**13
+
+  psi1 = psi1 + asym
+
+end function trigamma_complex_pos
+!--------------------------------------------------------------------------------------
+function bath_corr_ohmic(tau, beta, omega_c, eta) result(B)
+  ! Ohmic bath correlation function:
+  !
+  ! B(tau)/(eta*omega_c^2)
+  !   = 1/(1+i s)^2
+  !     + 2/theta^2 * Re[ psi1( 1 + (1+i s)/theta ) ]
+  !
+  ! theta = beta*hbar*omega_c
+  ! s     = omega_c*tau
+
+  real(8), intent(in) :: tau
+  real(8), intent(in) :: beta
+  real(8), intent(in) :: omega_c
+  real(8), intent(in) :: eta
+
+  complex(8) :: B
+
+  real(8) :: theta
+  real(8) :: s
+  complex(8) :: a
+  complex(8) :: z
+  complex(8) :: psi1
+
+  complex(8) :: trigamma_complex_pos
+  external :: trigamma_complex_pos
+
+  complex(8), parameter :: iu = (0.0d0, 1.0d0)
+
+
+  if (beta <= 0.0d0) error stop "beta must be positive"
+  if (hbar <= 0.0d0) error stop "hbar must be positive"
+  if (omega_c <= 0.0d0) error stop "omega_c must be positive"
+
+  theta = beta * omega_c
+  s     = omega_c * tau
+
+  a = 1.0d0 + iu*s
+  z = 1.0d0 + a/theta
+
+  psi1 = trigamma_complex_pos(z)
+
+  B = eta * omega_c**2 * ( 1.0d0/(a*a) + (2.0d0/theta**2) * real(psi1) )
+
+end function bath_corr_ohmic
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------
