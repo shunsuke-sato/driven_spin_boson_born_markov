@@ -275,6 +275,8 @@ subroutine propagation
   integer :: it
   real(8) :: S_F_fidelity, S_F_fidelity_ave ! Floquet state fidelity
   real(8) :: S_B_fidelity, S_B_fidelity_ave ! Bare state fidelity
+  real(8) :: S_F_cdistance, S_F_cdistance_ave ! Floquet state coherence distance
+  real(8) :: S_B_cdistance, S_B_cdistance_ave ! Bare state coherence distance
   real(8) :: pop_floquet(2), dpop_floquet_ave ! Floquet state population and its average
   real(8) :: purity, normalized_purity, normalized_purity_ave ! Purity and normalized purity
   complex(8) :: zrho_dm_square(2,2)
@@ -290,6 +292,8 @@ subroutine propagation
   if(if_floquet_analysis)open(31,file="floquet_fidelity_"//trim(cmethod)//".out")
   S_F_fidelity_ave = 0d0
   S_B_fidelity_ave = 0d0
+  S_F_cdistance_ave = 0d0
+  S_B_cdistance_ave = 0d0
   dpop_floquet_ave = 0d0
   normalized_purity_ave = 0d0
   call pre_propagation
@@ -304,9 +308,12 @@ subroutine propagation
     if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
       call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, pop_floquet, it*dt)
       call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt)
+      call calc_coherence_distance(S_B_cdistance, S_F_cdistance, zrho_dm_s, it*dt)
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
       S_B_fidelity_ave = S_B_fidelity_ave + S_B_fidelity
+      S_F_cdistance_ave = S_F_cdistance_ave + S_F_cdistance
+      S_B_cdistance_ave = S_B_cdistance_ave + S_B_cdistance
       dpop_floquet_ave = dpop_floquet_ave + abs(pop_floquet(1)-pop_floquet(2))
       
       zrho_dm_square = matmul(zrho_dm_s, zrho_dm_s)
@@ -334,6 +341,10 @@ subroutine propagation
     write(*,"(A,2x,e16.6e3)")&
         'Bare state fidelity (cycle averaged)=',S_B_fidelity_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
+        'Floquet coherence distance (cycle averaged)=',S_F_cdistance_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Bare state coherence distance (cycle averaged)=',S_B_cdistance_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
         'Floquet pop. diff. (cycle averaged)=',dpop_floquet_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Normalized purity (cycle averaged)=',normalized_purity_ave/nt_floquet_cycle
@@ -350,14 +361,18 @@ subroutine propagation_lindblad
   integer :: it
   real(8) :: S_F_fidelity, S_F_fidelity_ave ! Floquet state fidelity
   real(8) :: S_B_fidelity, S_B_fidelity_ave ! Bare state fidelity
+  real(8) :: S_B_cdistance, S_B_cdistance_ave ! Bare state coherence distance
+  real(8) :: S_F_cdistance, S_F_cdistance_ave ! Floquet state coherence distance
   real(8) :: pop_floquet(2), dpop_floquet_ave ! Floquet state population and its average
   real(8) :: purity, normalized_purity, normalized_purity_ave ! Purity and normalized purity
   complex(8) :: zrho_dm_square(2,2)
 
 
   if(if_floquet_analysis)open(31,file="floquet_fidelity_lindblad.out")
-  S_F_fidelity_ave = 0d0
   S_B_fidelity_ave = 0d0
+  S_F_fidelity_ave = 0d0
+  S_B_cdistance_ave = 0d0
+  S_F_cdistance_ave = 0d0
   dpop_floquet_ave = 0d0
   normalized_purity_ave = 0d0
   open(20,file='pop_t_lindblad.out')
@@ -368,9 +383,12 @@ subroutine propagation_lindblad
     if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
       call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, pop_floquet, it*dt)
       call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt)
+      call calc_coherence_distance(S_B_cdistance, S_F_cdistance, zrho_dm_s, it*dt)
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
       S_B_fidelity_ave = S_B_fidelity_ave + S_B_fidelity
+      S_F_cdistance_ave = S_F_cdistance_ave + S_F_cdistance
+      S_B_cdistance_ave = S_B_cdistance_ave + S_B_cdistance
       dpop_floquet_ave = dpop_floquet_ave + abs(pop_floquet(1)-pop_floquet(2))
 
       zrho_dm_square = matmul(zrho_dm_s, zrho_dm_s)
@@ -388,6 +406,10 @@ subroutine propagation_lindblad
         'Floquet fidelity (cycle averaged)=',S_F_fidelity_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Bare state fidelity (cycle averaged)=',S_B_fidelity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Floquet coherence distance (cycle averaged)=',S_F_cdistance_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Bare state coherence distance (cycle averaged)=',S_B_cdistance_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Floquet pop. diff. (cycle averaged)=',dpop_floquet_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
@@ -842,6 +864,30 @@ subroutine calc_bare_state_fidelity(zrho_in, S_B_fidelity_out, tt_in)
   S_B_fidelity_out = abs(S_B(1,1)*S_B(2,2)-S_B(1,2)*S_B(2,1))
 
 end subroutine calc_bare_state_fidelity
+!--------------------------------------------------------------------------------------
+subroutine calc_coherence_distance(S_B_cdistance, S_F_cdistance, zrho_in, tt_in)
+  use global_variables
+  implicit  none
+  real(8),intent(out) :: S_B_cdistance, S_F_cdistance
+  complex(8),intent(in) :: zrho_in(2,2)
+  real(8),intent(in) :: tt_in
+  complex(8) :: zpsi_F(2,2), zpsi_B(2,2)
+  complex(8) :: zpsi_t(2), zcoherence
+
+
+  call provide_Floquet_state_vectors_at_t(zpsi_F, tt_in)
+
+  zpsi_t = matmul(zrho_in, zpsi_F(:,1))
+  zcoherence = sum(conjg(zpsi_F(:,2))*zpsi_t(:))
+  S_F_cdistance = abs(zcoherence)
+
+  zpsi_B = 0d0
+  zpsi_B(1,1) = 1d0; zpsi_B(2,2) = 1d0
+  zpsi_t = matmul(zrho_in, zpsi_B(:,1))
+  zcoherence = sum(conjg(zpsi_B(:,2))*zpsi_t(:))
+  S_B_cdistance = abs(zcoherence)
+
+end subroutine calc_coherence_distance
 !--------------------------------------------------------------------------------------
 subroutine diag_2x2(zmat, zvec, lambda)
   implicit none
