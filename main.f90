@@ -279,6 +279,7 @@ subroutine propagation
   real(8) :: S_B_cdistance, S_B_cdistance_ave ! Bare state coherence distance
   real(8) :: pop_floquet(2), dpop_floquet_ave ! Floquet state population and its average
   real(8) :: purity, normalized_purity, normalized_purity_ave ! Purity and normalized purity
+  real(8) :: lambda_min, lambda_min_ave ! Minimum eigenvalue of density matrix and its average
   complex(8) :: zrho_dm_square(2,2)
   character(256) :: cmethod
 
@@ -296,6 +297,7 @@ subroutine propagation
   S_B_cdistance_ave = 0d0
   dpop_floquet_ave = 0d0
   normalized_purity_ave = 0d0
+  lambda_min_ave = 0d0
   call pre_propagation
 
   open(20,file='pop_t_'//trim(cmethod)//'.out')
@@ -307,7 +309,7 @@ subroutine propagation
 
     if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
       call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, pop_floquet, it*dt)
-      call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt)
+      call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt, lambda_min)
       call calc_coherence_distance(S_B_cdistance, S_F_cdistance, zrho_dm_s, it*dt)
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
@@ -315,6 +317,7 @@ subroutine propagation
       S_F_cdistance_ave = S_F_cdistance_ave + S_F_cdistance
       S_B_cdistance_ave = S_B_cdistance_ave + S_B_cdistance
       dpop_floquet_ave = dpop_floquet_ave + abs(pop_floquet(1)-pop_floquet(2))
+      lambda_min_ave = lambda_min_ave + lambda_min
       
       zrho_dm_square = matmul(zrho_dm_s, zrho_dm_s)
       purity = real(zrho_dm_square(1,1) + zrho_dm_square(2,2))
@@ -348,6 +351,8 @@ subroutine propagation
         'Floquet pop. diff. (cycle averaged)=',dpop_floquet_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Normalized purity (cycle averaged)=',normalized_purity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Minimum eigenvalue (cycle averaged)=',lambda_min_ave/nt_floquet_cycle
 
 
 
@@ -365,6 +370,7 @@ subroutine propagation_lindblad
   real(8) :: S_F_cdistance, S_F_cdistance_ave ! Floquet state coherence distance
   real(8) :: pop_floquet(2), dpop_floquet_ave ! Floquet state population and its average
   real(8) :: purity, normalized_purity, normalized_purity_ave ! Purity and normalized purity
+  real(8) :: lambda_min, lambda_min_ave ! Minimum eigenvalue of density matrix and its average
   complex(8) :: zrho_dm_square(2,2)
 
 
@@ -375,6 +381,7 @@ subroutine propagation_lindblad
   S_F_cdistance_ave = 0d0
   dpop_floquet_ave = 0d0
   normalized_purity_ave = 0d0
+  lambda_min_ave = 0d0
   open(20,file='pop_t_lindblad.out')
   do it = 0, nt
 
@@ -382,7 +389,7 @@ subroutine propagation_lindblad
 
     if(if_floquet_analysis .and. it >= nt-nt_floquet_cycle+1)then
       call calc_instantaneous_floquet_fidelity(zrho_dm_s, S_F_fidelity, pop_floquet, it*dt)
-      call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt)
+      call calc_bare_state_fidelity(zrho_dm_s, S_B_fidelity, it*dt, lambda_min)
       call calc_coherence_distance(S_B_cdistance, S_F_cdistance, zrho_dm_s, it*dt)
       write(31,"(999e26.16e3)")dt*it,S_F_fidelity, S_B_fidelity
       S_F_fidelity_ave = S_F_fidelity_ave + S_F_fidelity
@@ -390,6 +397,7 @@ subroutine propagation_lindblad
       S_F_cdistance_ave = S_F_cdistance_ave + S_F_cdistance
       S_B_cdistance_ave = S_B_cdistance_ave + S_B_cdistance
       dpop_floquet_ave = dpop_floquet_ave + abs(pop_floquet(1)-pop_floquet(2))
+      lambda_min_ave = lambda_min_ave + lambda_min
 
       zrho_dm_square = matmul(zrho_dm_s, zrho_dm_s)
       purity = real(zrho_dm_square(1,1) + zrho_dm_square(2,2))
@@ -414,6 +422,8 @@ subroutine propagation_lindblad
         'Floquet pop. diff. (cycle averaged)=',dpop_floquet_ave/nt_floquet_cycle
     write(*,"(A,2x,e16.6e3)")&
         'Normalized purity (cycle averaged)=',normalized_purity_ave/nt_floquet_cycle
+    write(*,"(A,2x,e16.6e3)")&
+        'Minimum eigenvalue (cycle averaged)=',lambda_min_ave/nt_floquet_cycle
 
     close(31)
   end if
@@ -834,12 +844,12 @@ subroutine calc_instantaneous_floquet_fidelity(zrho_in, S_F_fidelity_out, &
   S_F_fidelity_out = abs(S_F(1,1)*S_F(2,2)-S_F(1,2)*S_F(2,1))
 end subroutine calc_instantaneous_floquet_fidelity
 !--------------------------------------------------------------------------------------
-subroutine calc_bare_state_fidelity(zrho_in, S_B_fidelity_out, tt_in)
+subroutine calc_bare_state_fidelity(zrho_in, S_B_fidelity_out, tt_in, lambda_min)
   use global_variables
   implicit none
   complex(8),intent(in) :: zrho_in(2,2)
   real(8),intent(in) :: tt_in
-  real(8),intent(out) :: S_B_fidelity_out
+  real(8),intent(out) :: S_B_fidelity_out, lambda_min
   complex(8) :: zstates_nat(2,2), zpsi_B(2,2)
   real(8) :: occ_nat(2)
   real(8) :: S_B(2,2)
@@ -848,6 +858,7 @@ subroutine calc_bare_state_fidelity(zrho_in, S_B_fidelity_out, tt_in)
 
   S_B_fidelity_out = 0d0
   call diag_2x2(zrho_in, zstates_nat, occ_nat)
+  lambda_min = minval(occ_nat)
 
   zpsi_B(:,1) = [1d0, 0d0]
   zpsi_B(:,2) = [0d0, 1d0]
